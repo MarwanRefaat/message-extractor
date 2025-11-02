@@ -56,6 +56,7 @@ class iMessageExtractor:
             m.is_read,
             m.is_from_me,
             m.cache_has_attachments,
+            m.item_type,
             h.id as handle_id,
             h.uncanonicalized_id as phone_email
         FROM message m
@@ -96,6 +97,28 @@ class iMessageExtractor:
         # Parse timestamp (iMessage stores as nanoseconds since 2001-01-01)
         timestamp_ns = row['date']
         timestamp = IMESSAGE_EPOCH + timedelta(seconds=timestamp_ns / 1e9)
+        
+        # Determine message body - handle Tapbacks and media-only messages
+        body = row['text'] if row['text'] else ""
+        if not body and 'item_type' in row.keys():
+            item_type = row['item_type']
+            # iMessage Tapbacks/reactions
+            if item_type == 0:
+                body = "[Tapback/Reaction]"
+            elif item_type == 1:
+                body = "[Attachment]"
+            elif item_type == 2:
+                body = "[Apple Pay Payment]"
+            elif item_type == 3:
+                body = "[Sticker]"
+            elif item_type == 4:
+                body = "[App Share]"
+            elif item_type == 5:
+                body = "[Location]"
+            elif item_type == 6:
+                body = "[Collaboration]"
+            elif item_type is not None:
+                body = f"[Message Type {item_type}]"
         
         # Determine sender and recipients
         if row['is_from_me']:
@@ -146,7 +169,7 @@ class iMessageExtractor:
             recipients=recipients,
             participants=participants,
             subject=None,
-            body=row['text'] or "",
+            body=body,
             attachments=attachment_list,
             thread_id=None,
             is_read=bool(row['is_read']),
