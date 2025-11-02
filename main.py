@@ -5,6 +5,7 @@ Extracts from iMessage, WhatsApp, Gmail, and Google Calendar
 import os
 import argparse
 import sys
+import inspect
 from pathlib import Path
 
 from schema import UnifiedLedger
@@ -44,7 +45,9 @@ def extract_platform(extractor, platform_name: str, raw_dir: Path, raw_only: boo
     try:
         # Export raw data
         if hasattr(extractor, 'export_raw'):
-            if max_results:
+            # Check if export_raw accepts max_results parameter
+            sig = inspect.signature(extractor.export_raw)
+            if 'max_results' in sig.parameters:
                 extractor.export_raw(str(raw_dir), max_results=max_results)
             else:
                 extractor.export_raw(str(raw_dir))
@@ -53,7 +56,9 @@ def extract_platform(extractor, platform_name: str, raw_dir: Path, raw_only: boo
             return 0
         
         # Extract and add to unified ledger
-        if max_results and hasattr(extractor, 'extract_all'):
+        # Check if extract_all accepts max_results parameter
+        sig = inspect.signature(extractor.extract_all)
+        if 'max_results' in sig.parameters:
             ledger = extractor.extract_all(max_results=max_results)
         else:
             ledger = extractor.extract_all()

@@ -4,6 +4,8 @@ Extracts messages from macOS iMessage database
 """
 import sqlite3
 import os
+import json
+import base64
 from datetime import datetime, timedelta
 from typing import List, Optional
 from pathlib import Path
@@ -43,6 +45,7 @@ class iMessageExtractor:
         cursor = conn.cursor()
         
         # Query to get messages with contact information (filtered to 2024 onwards)
+        # Simplified query - contact table may not exist in all iMessage versions
         query = """
         SELECT 
             m.rowid,
@@ -54,16 +57,9 @@ class iMessageExtractor:
             m.is_from_me,
             m.cache_has_attachments,
             h.id as handle_id,
-            h.uncanonicalized_id as phone_email,
-            c.display_name,
-            c.service as service_name
+            h.uncanonicalized_id as phone_email
         FROM message m
         LEFT JOIN handle h ON m.handle_id = h.rowid
-        LEFT JOIN chat_message_join cm ON m.rowid = cm.message_id
-        LEFT JOIN chat ch ON cm.chat_id = ch.rowid
-        LEFT JOIN chat_handle_join chj ON ch.rowid = chj.chat_id
-        LEFT JOIN handle h2 ON chj.handle_id = h2.rowid
-        LEFT JOIN contact c ON h.uncanonicalized_id = c.service || ":" || h.uncanonicalized_id
         WHERE m.date >= ?
         ORDER BY m.date
         """
@@ -112,21 +108,23 @@ class iMessageExtractor:
                 platform="imessage"
             )
             # Get recipients from the chat
+            phone_email = row['phone_email'] if 'phone_email' in row.keys() else None
             recipient = Contact(
-                name=row['display_name'],
-                email=row['phone_email'] if '@' in str(row['phone_email']) else None,
-                phone=row['phone_email'] if '@' not in str(row['phone_email']) else None,
-                platform_id=str(row['phone_email']),
+                name=None,
+                email=str(phone_email) if phone_email and '@' in str(phone_email) else None,
+                phone=str(phone_email) if phone_email and '@' not in str(phone_email) else None,
+                platform_id=str(phone_email) if phone_email else "unknown",
                 platform="imessage"
             )
             recipients = [recipient]
         else:
             # Message received
+            phone_email = row['phone_email'] if 'phone_email' in row.keys() else None
             sender = Contact(
-                name=row['display_name'],
-                email=row['phone_email'] if '@' in str(row['phone_email']) else None,
-                phone=row['phone_email'] if '@' not in str(row['phone_email']) else None,
-                platform_id=str(row['phone_email']),
+                name=None,
+                email=str(phone_email) if phone_email and '@' in str(phone_email) else None,
+                phone=str(phone_email) if phone_email and '@' not in str(phone_email) else None,
+                platform_id=str(phone_email) if phone_email else "unknown",
                 platform="imessage"
             )
             recipients = [Contact(
@@ -164,7 +162,7 @@ class iMessageExtractor:
                 'rowid': row['rowid'],
                 'is_from_me': row['is_from_me'],
                 'cache_has_attachments': row['cache_has_attachments'],
-                'service': row['service_name']
+                'phone_email': row['phone_email'] if 'phone_email' in row.keys() else None
             }
         )
         
@@ -186,12 +184,21 @@ class iMessageExtractor:
         cursor.execute(query)
         rows = cursor.fetchall()
         
-        import json
         with open(output_path, 'w') as f:
             for row in rows:
-                data = {k: row[k] for k in row.keys()}
+                data = {}
+                for k in row.keys():
+                    try:
+                        value = row[k]
+                        # Convert bytes to base64 for JSON serialization
+                        if isinstance(value, bytes):
+                            data[k] = base64.b64encode(value).decode('utf-8')
+                        else:
+                            data[k] = value
+                    except Exception:
+                        data[k] = None
                 f.write(json.dumps(data) + '\n')
         
         conn.close()
-        print(f"Exported {len(rows)} raw iMessage records to {output_path}")
+        logger.info(f"Exported {len(rows)} raw iMessage records to {output_path}")
 

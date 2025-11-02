@@ -237,10 +237,17 @@ class UnifiedLedger:
                 
                 for msg in timeline:
                     f.write(f"\n[{msg.platform.upper()}] {msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    f.write(f"From: {msg.sender.name or msg.sender.email or msg.sender.phone}\n")
+                    sender_str = str(msg.sender.name or msg.sender.email or msg.sender.phone or 'Unknown')
+                    f.write(f"From: {sender_str}\n")
                     
                     if msg.recipients:
-                        f.write(f"To: {', '.join(r.name or r.email or r.phone for r in msg.recipients)}\n")
+                        recipient_strs = []
+                        for r in msg.recipients:
+                            val = r.name or r.email or r.phone
+                            if val:
+                                recipient_strs.append(str(val))
+                        if recipient_strs:
+                            f.write(f"To: {', '.join(recipient_strs)}\n")
                     
                     if msg.subject:
                         f.write(f"Subject: {msg.subject}\n")
