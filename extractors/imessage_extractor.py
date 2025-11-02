@@ -59,7 +59,7 @@ class iMessageExtractor:
             m.item_type,
             m.associated_message_type,
             h.id as handle_id,
-            h.uncanonicalized_id as phone_email
+            COALESCE(h.uncanonicalized_id, h.id) as phone_email
         FROM message m
         LEFT JOIN handle h ON m.handle_id = h.rowid
         WHERE m.date >= ?
