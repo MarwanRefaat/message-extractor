@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.venv/
 env/
 venv/
 ENV/
@@ -25,9 +26,9 @@ wheels/
 
 # Output files
 output/
-example_output.json
-example_timeline.txt
-unified_example.txt
+*.json
+*.jsonl
+*.txt
 token.json
 
 # Credentials
