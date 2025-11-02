@@ -77,9 +77,20 @@ class iMessageExtractor:
         WHERE maj.message_id = ?
         """
         
+        # Get chat participant lookup for messages with handle_id = 0
+        chat_participant_query = """
+        SELECT h.id as handle_id,
+               COALESCE(h.uncanonicalized_id, h.id) as phone_email
+        FROM chat_message_join cmj
+        JOIN chat_handle_join chj ON cmj.chat_id = chj.chat_id
+        JOIN handle h ON chj.handle_id = h.rowid
+        WHERE cmj.message_id = ?
+        LIMIT 1
+        """
+        
         for row in rows:
             try:
-                message = self._row_to_message(row, cursor, attachment_query)
+                message = self._row_to_message(row, cursor, attachment_query, chat_participant_query)
                 ledger.add_message(message)
             except Exception as e:
                 logger.warning(f"Error processing iMessage row {row['rowid']}: {e}")
@@ -88,7 +99,7 @@ class iMessageExtractor:
         conn.close()
         return ledger
     
-    def _row_to_message(self, row: sqlite3.Row, cursor: sqlite3.Cursor, attachment_query: str) -> Message:
+    def _row_to_message(self, row: sqlite3.Row, cursor: sqlite3.Cursor, attachment_query: str, chat_participant_query: str) -> Message:
         """Convert database row to Message object"""
         # Get attachments
         cursor.execute(attachment_query, (row['rowid'],))
@@ -140,6 +151,16 @@ class iMessageExtractor:
                 body = f"[Message Type {item_type}]"
         
         # Determine sender and recipients
+        # First try to get phone_email from row, if None try chat participant lookup
+        phone_email = row['phone_email'] if 'phone_email' in row.keys() else None
+        
+        # If phone_email is None, try to get it from chat participants (for messages with handle_id=0)
+        if phone_email is None:
+            cursor.execute(chat_participant_query, (row['rowid'],))
+            chat_result = cursor.fetchone()
+            if chat_result:
+                phone_email = chat_result['phone_email']
+        
         if row['is_from_me']:
             # Message sent by us
             sender = Contact(
@@ -150,7 +171,6 @@ class iMessageExtractor:
                 platform="imessage"
             )
             # Get recipients from the chat
-            phone_email = row['phone_email'] if 'phone_email' in row.keys() else None
             recipient = Contact(
                 name=None,
                 email=str(phone_email) if phone_email and '@' in str(phone_email) else None,
@@ -161,7 +181,6 @@ class iMessageExtractor:
             recipients = [recipient]
         else:
             # Message received
-            phone_email = row['phone_email'] if 'phone_email' in row.keys() else None
             sender = Contact(
                 name=None,
                 email=str(phone_email) if phone_email and '@' in str(phone_email) else None,
