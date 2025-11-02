@@ -58,6 +58,7 @@ class iMessageExtractor:
             m.cache_has_attachments,
             m.item_type,
             m.associated_message_type,
+            m.associated_message_emoji,
             h.id as handle_id,
             COALESCE(h.uncanonicalized_id, h.id) as phone_email
         FROM message m
@@ -121,6 +122,8 @@ class iMessageExtractor:
             if item_type == 0:
                 # Check associated_message_type for specific tapback type
                 tapback_type = row['associated_message_type'] if 'associated_message_type' in row.keys() else 0
+                tapback_emoji = row['associated_message_emoji'] if 'associated_message_emoji' in row.keys() else None
+                
                 tapback_map = {
                     2000: "Liked",
                     2001: "Disliked",
@@ -128,11 +131,15 @@ class iMessageExtractor:
                     2003: "Laughed At",
                     2004: "Emphasized",
                     2005: "Questioned",
-                    2006: "???",  # Removed from UI
+                    2006: "Custom Emoji",  # Custom emoji tapback
                     3000: "Interacted with Shake"
                 }
                 if tapback_type in tapback_map:
-                    body = f"[Tapback: {tapback_map[tapback_type]}]"
+                    # For custom emojis (type 2006), include the emoji
+                    if tapback_type == 2006 and tapback_emoji:
+                        body = f"[Tapback: {tapback_emoji}]"
+                    else:
+                        body = f"[Tapback: {tapback_map[tapback_type]}]"
                 else:
                     body = "[Tapback/Reaction]"
             elif item_type == 1:
