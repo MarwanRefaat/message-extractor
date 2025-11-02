@@ -191,8 +191,8 @@ Examples:
             extractor = GmailExtractor()
             count = extract_platform(extractor, "Gmail", raw_dir, args.raw_only, unified_ledger, args.max_results)
             extracted_count += count
-        except MessageExtractorError as e:
-            logger.error(f"Skipping Gmail: {e}")
+        except (MessageExtractorError, FileNotFoundError, ImportError) as e:
+            logger.warning(f"Skipping Gmail: {e}")
     
     # Extract Google Calendar
     if args.extract_all or args.extract_gcal:
@@ -200,8 +200,8 @@ Examples:
             extractor = GoogleCalendarExtractor()
             count = extract_platform(extractor, "Google Calendar", raw_dir, args.raw_only, unified_ledger, args.max_results)
             extracted_count += count
-        except MessageExtractorError as e:
-            logger.error(f"Skipping Google Calendar: {e}")
+        except (MessageExtractorError, FileNotFoundError, ImportError) as e:
+            logger.warning(f"Skipping Google Calendar: {e}")
     
     # Export unified ledger
     if not args.raw_only and unified_ledger.messages:
