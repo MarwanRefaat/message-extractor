@@ -178,20 +178,44 @@ class iMessageExtractor:
                 platform="imessage"
             )
             # Get recipients from the chat
+            # Determine if phone_email is email or phone based on format
+            email_val = None
+            phone_val = None
+            if phone_email:
+                phone_email_str = str(phone_email)
+                if '@' in phone_email_str:
+                    email_val = phone_email_str
+                else:
+                    # Only set as phone if it looks like a phone number, not a URN or other ID
+                    if phone_email_str.startswith('+') or phone_email_str.replace('+', '').replace('-', '').replace(' ', '').isdigit():
+                        phone_val = phone_email_str
+            
             recipient = Contact(
                 name=None,
-                email=str(phone_email) if phone_email and '@' in str(phone_email) else None,
-                phone=str(phone_email) if phone_email and '@' not in str(phone_email) else None,
+                email=email_val,
+                phone=phone_val,
                 platform_id=str(phone_email) if phone_email else "unknown",
                 platform="imessage"
             )
             recipients = [recipient]
         else:
             # Message received
+            # Determine if phone_email is email or phone based on format
+            email_val = None
+            phone_val = None
+            if phone_email:
+                phone_email_str = str(phone_email)
+                if '@' in phone_email_str:
+                    email_val = phone_email_str
+                else:
+                    # Only set as phone if it looks like a phone number, not a URN or other ID
+                    if phone_email_str.startswith('+') or phone_email_str.replace('+', '').replace('-', '').replace(' ', '').isdigit():
+                        phone_val = phone_email_str
+            
             sender = Contact(
                 name=None,
-                email=str(phone_email) if phone_email and '@' in str(phone_email) else None,
-                phone=str(phone_email) if phone_email and '@' not in str(phone_email) else None,
+                email=email_val,
+                phone=phone_val,
                 platform_id=str(phone_email) if phone_email else "unknown",
                 platform="imessage"
             )

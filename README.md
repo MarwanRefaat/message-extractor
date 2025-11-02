@@ -66,6 +66,27 @@ output/
     └── unified_timeline.txt# Human-readable timeline
 ```
 
+## Output Quality
+
+The JSON output is **robust and validated**:
+- ✅ Regex-validated IDs, emails, phones
+- ✅ Sanitized strings (no null bytes, length limits)
+- ✅ MECE structure (Mutually Exclusive, Collectively Exhaustive)
+- ✅ ISO 8601 timestamps
+- ✅ Comprehensive validation
+
+See `docs/JSON_SCHEMA.md` for full schema documentation.
+
+## Running Tests
+
+```bash
+# Run all validation tests
+python3 tests/test_json_validation.py
+
+# Extract with validation
+./run.sh --extract-all
+```
+
 ## Requirements
 
 - Python 3.8+

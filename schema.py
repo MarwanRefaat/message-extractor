@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import json
+import os
 
 
 @dataclass
@@ -194,12 +195,13 @@ class UnifiedLedger:
         """Generate chronological timeline of all messages"""
         return sorted(self.messages, key=lambda m: m.timestamp)
     
-    def export_to_json(self, output_path: str) -> None:
+    def export_to_json(self, output_path: str, validate: bool = True) -> None:
         """
-        Export entire ledger to JSON file
+        Export entire ledger to JSON file with validation
         
         Args:
             output_path: Path to output JSON file
+            validate: Whether to validate JSON structure
             
         Raises:
             IOError: If file cannot be written
@@ -212,6 +214,22 @@ class UnifiedLedger:
                 'unique_contacts': len(self.contact_registry),
                 'messages': [m.to_dict() for m in timeline]
             }
+            
+            # Sanitize data for safe JSON output
+            from utils.validators import sanitize_json_data
+            data = sanitize_json_data(data)
+            
+            # Validate structure if requested
+            if validate:
+                from utils.validators import validate_ledger, ValidationError
+                errors = validate_ledger(data)
+                if errors:
+                    import warnings
+                    warnings.warn(f"JSON validation errors: {errors[:5]}...")
+            
+            # Create output directory if needed
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, default=str, ensure_ascii=False)
         except IOError as e:
