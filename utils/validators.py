@@ -197,6 +197,12 @@ def sanitize_string(value: Optional[str], max_length: int = 10000) -> Optional[s
     # Remove null bytes
     value = value.replace('\x00', '')
     
+    # Remove unusual line terminators (LS, PS) that cause issues in JSON
+    # LS (Line Separator, U+2028) and PS (Paragraph Separator, U+2029)
+    # These are problematic in JSON strings
+    value = value.replace('\u2028', ' ')  # Line Separator
+    value = value.replace('\u2029', ' ')  # Paragraph Separator
+    
     # Truncate if too long
     if len(value) > max_length:
         return value[:max_length] + "..."
