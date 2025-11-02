@@ -57,6 +57,7 @@ class iMessageExtractor:
             m.is_from_me,
             m.cache_has_attachments,
             m.item_type,
+            m.associated_message_type,
             h.id as handle_id,
             h.uncanonicalized_id as phone_email
         FROM message m
@@ -100,11 +101,29 @@ class iMessageExtractor:
         
         # Determine message body - handle Tapbacks and media-only messages
         body = row['text'] if row['text'] else ""
+        # Treat whitespace-only strings as empty
+        if body and not body.strip():
+            body = ""
         if not body and 'item_type' in row.keys():
             item_type = row['item_type']
             # iMessage Tapbacks/reactions
             if item_type == 0:
-                body = "[Tapback/Reaction]"
+                # Check associated_message_type for specific tapback type
+                tapback_type = row['associated_message_type'] if 'associated_message_type' in row.keys() else 0
+                tapback_map = {
+                    2000: "Liked",
+                    2001: "Disliked",
+                    2002: "Loved",
+                    2003: "Laughed At",
+                    2004: "Emphasized",
+                    2005: "Questioned",
+                    2006: "???",  # Removed from UI
+                    3000: "Interacted with Shake"
+                }
+                if tapback_type in tapback_map:
+                    body = f"[Tapback: {tapback_map[tapback_type]}]"
+                else:
+                    body = "[Tapback/Reaction]"
             elif item_type == 1:
                 body = "[Attachment]"
             elif item_type == 2:

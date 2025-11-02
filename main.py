@@ -225,6 +225,28 @@ Examples:
             logger.info(f"  Unique contacts: {len(unified_ledger.contact_registry)}")
             logger.info(f"  Platforms: {', '.join(sorted(set(m.platform for m in unified_ledger.messages)))}")
             
+            # Analytics
+            from collections import Counter
+            # Count by platform
+            platform_counts = Counter(m.platform for m in unified_ledger.messages)
+            if platform_counts:
+                logger.info(f"\nMessages by platform:")
+                for platform, count in platform_counts.most_common():
+                    logger.info(f"  {platform}: {count:,}")
+            
+            # Top contacts
+            sender_counts = Counter()
+            for msg in unified_ledger.messages:
+                sender = msg.sender
+                key = sender.phone or sender.email or sender.name or sender.platform_id
+                if key:
+                    sender_counts[key] += 1
+            
+            if sender_counts:
+                logger.info(f"\nTop 10 contacts:")
+                for contact, count in sender_counts.most_common(10):
+                    logger.info(f"  {contact}: {count:,}")
+            
         except Exception as e:
             logger.error(f"Failed to export unified ledger: {e}")
     
