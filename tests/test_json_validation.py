@@ -179,6 +179,26 @@ def test_sanitize_long_string():
     assert '...' in sanitized_msg['body'], "Truncation marker missing"
 
 
+def test_sanitize_unusual_line_terminators():
+    """Test removal of unusual line terminators"""
+    from utils.validators import sanitize_string
+    
+    # Test Line Separator (LS)
+    dirty = "Line 1\u2028Line 2"
+    clean = sanitize_string(dirty)
+    assert '\u2028' not in clean, "Line Separator not removed"
+    
+    # Test Paragraph Separator (PS)
+    dirty = "Para 1\u2029Para 2"
+    clean = sanitize_string(dirty)
+    assert '\u2029' not in clean, "Paragraph Separator not removed"
+    
+    # Test both
+    dirty = "Text\u2028with\u2029both"
+    clean = sanitize_string(dirty)
+    assert '\u2028' not in clean and '\u2029' not in clean, "Unusual terminators not removed"
+
+
 def test_end_to_end_extraction():
     """Test end-to-end extraction produces valid JSON"""
     # This test should be run with actual extractors
@@ -233,6 +253,7 @@ def run_all_tests():
         test_invalid_message_id,
         test_sanitize_null_bytes,
         test_sanitize_long_string,
+        test_sanitize_unusual_line_terminators,
         test_mutually_exclusive_structure
     ]
     
