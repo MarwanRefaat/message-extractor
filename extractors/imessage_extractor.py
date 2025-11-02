@@ -9,13 +9,11 @@ from typing import List, Optional
 from pathlib import Path
 
 from schema import Message, Contact, UnifiedLedger
+from constants import IMESSAGE_FILTER_TIMESTAMP_NS, IMESSAGE_EPOCH
+from exceptions import DatabaseError
+from utils.logger import get_logger
 
-# iMessage epoch: January 1, 2001
-IMESSAGE_EPOCH = datetime(2001, 1, 1)
-# Filter start date: January 1, 2024
-FILTER_START_DATE = datetime(2024, 1, 1)
-# Calculate nanoseconds since iMessage epoch for 2024-01-01
-FILTER_START_TIMESTAMP_NS = int((FILTER_START_DATE - IMESSAGE_EPOCH).total_seconds() * 1e9)
+logger = get_logger(__name__)
 
 
 class iMessageExtractor:
@@ -70,7 +68,7 @@ class iMessageExtractor:
         ORDER BY m.date
         """
         
-        cursor.execute(query, (FILTER_START_TIMESTAMP_NS,))
+        cursor.execute(query, (IMESSAGE_FILTER_TIMESTAMP_NS,))
         rows = cursor.fetchall()
         
         # Get attachment information
@@ -86,7 +84,7 @@ class iMessageExtractor:
                 message = self._row_to_message(row, cursor, attachment_query)
                 ledger.add_message(message)
             except Exception as e:
-                print(f"Error processing iMessage row {row['rowid']}: {e}")
+                logger.warning(f"Error processing iMessage row {row['rowid']}: {e}")
                 continue
         
         conn.close()
@@ -101,7 +99,7 @@ class iMessageExtractor:
         
         # Parse timestamp (iMessage stores as nanoseconds since 2001-01-01)
         timestamp_ns = row['date']
-        timestamp = datetime(2001, 1, 1) + timedelta(seconds=timestamp_ns / 1e9)
+        timestamp = IMESSAGE_EPOCH + timedelta(seconds=timestamp_ns / 1e9)
         
         # Determine sender and recipients
         if row['is_from_me']:

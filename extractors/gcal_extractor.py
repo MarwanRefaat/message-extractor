@@ -23,9 +23,11 @@ except ImportError:
     DATEUTIL_AVAILABLE = False
 
 from schema import Message, Contact, UnifiedLedger
+from constants import GCAL_FILTER_TIME_MIN, FILTER_START_DATE
+from exceptions import AuthenticationError, ExtractionError
+from utils.logger import get_logger
 
-# Filter start date: January 1, 2024
-FILTER_START_DATE = datetime(2024, 1, 1)
+logger = get_logger(__name__)
 
 
 class GoogleCalendarExtractor:
@@ -100,7 +102,7 @@ class GoogleCalendarExtractor:
             calendars = self.service.calendarList().list().execute()
             calendar_list = calendars.get('items', [])
             
-            print(f"Found {len(calendar_list)} calendars")
+            logger.info(f"Found {len(calendar_list)} calendars")
             
             for calendar in calendar_list:
                 calendar_id = calendar['id']
@@ -112,23 +114,23 @@ class GoogleCalendarExtractor:
                     maxResults=2500,  # API limit per page
                     singleEvents=True,
                     orderBy='startTime',
-                    timeMin=FILTER_START_DATE.isoformat() + 'Z'
+                    timeMin=GCAL_FILTER_TIME_MIN
                 ).execute()
                 
                 events = events_result.get('items', [])
                 
-                print(f"Found {len(events)} events in calendar: {calendar_summary}")
+                logger.info(f"Found {len(events)} events in calendar: {calendar_summary}")
                 
                 for event in events:
                     try:
                         message = self._parse_event(event, calendar_summary)
                         ledger.add_message(message)
                     except Exception as e:
-                        print(f"Error processing event {event.get('id', 'unknown')}: {e}")
+                        logger.warning(f"Error processing event {event.get('id', 'unknown')}: {e}")
                         continue
         
         except Exception as error:
-            print(f'An error occurred: {error}')
+            logger.error(f'An error occurred: {error}')
             raise
         
         return ledger
@@ -257,5 +259,5 @@ class GoogleCalendarExtractor:
                 for event in events:
                     f.write(json.dumps(event) + '\n')
         
-        print(f"Exported raw Google Calendar records to {output_path}")
+        logger.info(f"Exported raw Google Calendar records to {output_path}")
 

@@ -9,9 +9,11 @@ from typing import List, Optional
 import json
 
 from schema import Message, Contact, UnifiedLedger
+from constants import WHATSAPP_FILTER_TIMESTAMP_MS
+from exceptions import DatabaseError
+from utils.logger import get_logger
 
-# Filter start date: January 1, 2024 (in milliseconds since Unix epoch)
-FILTER_START_TIMESTAMP_MS = int(datetime(2024, 1, 1).timestamp() * 1000)
+logger = get_logger(__name__)
 
 
 class WhatsAppExtractor:
@@ -62,7 +64,7 @@ class WhatsAppExtractor:
             WHERE m.timestamp >= ?
             ORDER BY m.timestamp
             """
-            cursor.execute(query, (FILTER_START_TIMESTAMP_MS,))
+            cursor.execute(query, (WHATSAPP_FILTER_TIMESTAMP_MS,))
         elif 'messages' in tables:
             # Older WhatsApp structure (filtered to 2024 onwards)
             query = """
@@ -76,7 +78,7 @@ class WhatsAppExtractor:
             WHERE timestamp >= ?
             ORDER BY timestamp
             """
-            cursor.execute(query, (FILTER_START_TIMESTAMP_MS,))
+            cursor.execute(query, (WHATSAPP_FILTER_TIMESTAMP_MS,))
         else:
             conn.close()
             raise ValueError("Could not find recognized WhatsApp message tables")
@@ -87,7 +89,7 @@ class WhatsAppExtractor:
                 message = self._row_to_message(row, cursor)
                 ledger.add_message(message)
             except Exception as e:
-                print(f"Error processing WhatsApp row {row.get('_id', 'unknown')}: {e}")
+                logger.warning(f"Error processing WhatsApp row {row.get('_id', 'unknown')}: {e}")
                 continue
         
         conn.close()
@@ -219,5 +221,5 @@ class WhatsAppExtractor:
                 f.write(json.dumps(data) + '\n')
         
         conn.close()
-        print(f"Exported {len(rows)} raw WhatsApp records to {output_path}")
+        logger.info(f"Exported {len(rows)} raw WhatsApp records to {output_path}")
 

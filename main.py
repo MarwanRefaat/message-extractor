@@ -6,22 +6,88 @@ import os
 import argparse
 import sys
 from pathlib import Path
-from datetime import datetime
 
 from schema import UnifiedLedger
-from extractors import iMessageExtractor, WhatsAppExtractor, GmailExtractor, GoogleCalendarExtractor
+from constants import (
+    FILTER_START_DATE, OUTPUT_DIR, RAW_DIR, UNIFIED_DIR,
+    DEFAULT_MAX_RESULTS, UNIFIED_LEDGER_JSON, UNIFIED_TIMELINE_TXT
+)
+from extractors import (
+    iMessageExtractor, WhatsAppExtractor, GmailExtractor, GoogleCalendarExtractor
+)
+from exceptions import (
+    MessageExtractorError, ConfigurationError, ExtractionError
+)
+from utils.logger import get_logger
+
+logger = get_logger('main')
+
+
+def extract_platform(extractor, platform_name: str, raw_dir: Path, raw_only: bool = False, 
+                     unified_ledger: UnifiedLedger = None, max_results: int = DEFAULT_MAX_RESULTS):
+    """
+    Extract messages from a platform
+    
+    Args:
+        extractor: Platform extractor instance
+        platform_name: Name of the platform for logging
+        raw_dir: Directory for raw exports
+        raw_only: Whether to skip unified ledger
+        unified_ledger: Unified ledger to add messages to
+        max_results: Maximum results to extract
+        
+    Returns:
+        Number of extracted messages
+    """
+    logger.info(f"Extracting {platform_name} data...")
+    
+    try:
+        # Export raw data
+        if hasattr(extractor, 'export_raw'):
+            if max_results:
+                extractor.export_raw(str(raw_dir), max_results=max_results)
+            else:
+                extractor.export_raw(str(raw_dir))
+        
+        if raw_only or unified_ledger is None:
+            return 0
+        
+        # Extract and add to unified ledger
+        if max_results and hasattr(extractor, 'extract_all'):
+            ledger = extractor.extract_all(max_results=max_results)
+        else:
+            ledger = extractor.extract_all()
+        
+        for msg in ledger.messages:
+            unified_ledger.add_message(msg)
+        
+        logger.info(f"✓ Extracted {len(ledger.messages)} {platform_name} records")
+        return len(ledger.messages)
+        
+    except Exception as e:
+        logger.error(f"✗ Error extracting {platform_name}: {e}")
+        raise ExtractionError(f"Failed to extract {platform_name}: {e}")
 
 
 def main():
+    """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="Extract messages from iMessage, WhatsApp, Gmail, and Google Calendar"
+        description="Extract messages from iMessage, WhatsApp, Gmail, and Google Calendar",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python main.py --extract-imessage
+  python main.py --extract-all
+  python main.py --extract-gmail --extract-gcal
+  python main.py --extract-whatsapp --whatsapp-db /path/to/db
+        """
     )
     
     parser.add_argument(
         '--output-dir',
         type=str,
-        default='./output',
-        help='Output directory for extracted data (default: ./output)'
+        default=OUTPUT_DIR,
+        help=f'Output directory for extracted data (default: {OUTPUT_DIR})'
     )
     
     parser.add_argument(
@@ -69,147 +135,111 @@ def main():
     parser.add_argument(
         '--max-results',
         type=int,
-        default=10000,
-        help='Maximum number of records to extract per source (default: 10000)'
+        default=DEFAULT_MAX_RESULTS,
+        help=f'Maximum number of records to extract per source (default: {DEFAULT_MAX_RESULTS})'
     )
     
     args = parser.parse_args()
     
     # Create output directory
     output_dir = Path(args.output_dir)
-    raw_dir = output_dir / "raw"
-    unified_dir = output_dir / "unified"
+    raw_dir = output_dir / RAW_DIR
+    unified_dir = output_dir / UNIFIED_DIR
     
     os.makedirs(raw_dir, exist_ok=True)
     os.makedirs(unified_dir, exist_ok=True)
     
+    logger.info("=" * 80)
+    logger.info("Message Extractor - Starting extraction")
+    logger.info("=" * 80)
+    
     # Create unified ledger with start date of 2024-01-01
-    start_date = datetime(2024, 1, 1)
-    unified_ledger = UnifiedLedger(start_date=start_date)
-    print(f"\nFiltering messages from {start_date.strftime('%Y-%m-%d')} onwards")
+    unified_ledger = UnifiedLedger(start_date=FILTER_START_DATE)
+    logger.info(f"Filtering messages from {FILTER_START_DATE.strftime('%Y-%m-%d')} onwards")
     
     extracted_count = 0
     
     # Extract iMessage
     if args.extract_all or args.extract_imessage:
-        print("\n" + "="*80)
-        print("Extracting iMessage data...")
-        print("="*80)
-        
         try:
             extractor = iMessageExtractor()
-            
-            # Export raw data
-            extractor.export_raw(str(raw_dir))
-            
-            if not args.raw_only:
-                ledger = extractor.extract_all()
-                for msg in ledger.messages:
-                    unified_ledger.add_message(msg)
-                extracted_count += len(ledger.messages)
-                print(f"Extracted {len(ledger.messages)} iMessage records")
-        
-        except Exception as e:
-            print(f"Error extracting iMessage: {e}")
+            count = extract_platform(extractor, "iMessage", raw_dir, args.raw_only, unified_ledger)
+            extracted_count += count
+        except MessageExtractorError as e:
+            logger.error(f"Skipping iMessage: {e}")
     
     # Extract WhatsApp
     if args.extract_all or args.extract_whatsapp:
-        print("\n" + "="*80)
-        print("Extracting WhatsApp data...")
-        print("="*80)
-        
         if not args.whatsapp_db:
-            print("Warning: --whatsapp-db not specified, skipping WhatsApp extraction")
+            logger.warning("--whatsapp-db not specified, skipping WhatsApp extraction")
         else:
             try:
                 extractor = WhatsAppExtractor(args.whatsapp_db)
-                
-                # Export raw data
-                extractor.export_raw(str(raw_dir))
-                
-                if not args.raw_only:
-                    ledger = extractor.extract_all()
-                    for msg in ledger.messages:
-                        unified_ledger.add_message(msg)
-                    extracted_count += len(ledger.messages)
-                    print(f"Extracted {len(ledger.messages)} WhatsApp records")
-            
-            except Exception as e:
-                print(f"Error extracting WhatsApp: {e}")
+                count = extract_platform(extractor, "WhatsApp", raw_dir, args.raw_only, unified_ledger)
+                extracted_count += count
+            except MessageExtractorError as e:
+                logger.error(f"Skipping WhatsApp: {e}")
     
     # Extract Gmail
     if args.extract_all or args.extract_gmail:
-        print("\n" + "="*80)
-        print("Extracting Gmail data...")
-        print("="*80)
-        
         try:
             extractor = GmailExtractor()
-            
-            # Export raw data
-            extractor.export_raw(str(raw_dir), max_results=args.max_results)
-            
-            if not args.raw_only:
-                ledger = extractor.extract_all(max_results=args.max_results)
-                for msg in ledger.messages:
-                    unified_ledger.add_message(msg)
-                extracted_count += len(ledger.messages)
-                print(f"Extracted {len(ledger.messages)} Gmail records")
-        
-        except Exception as e:
-            print(f"Error extracting Gmail: {e}")
+            count = extract_platform(extractor, "Gmail", raw_dir, args.raw_only, unified_ledger, args.max_results)
+            extracted_count += count
+        except MessageExtractorError as e:
+            logger.error(f"Skipping Gmail: {e}")
     
     # Extract Google Calendar
     if args.extract_all or args.extract_gcal:
-        print("\n" + "="*80)
-        print("Extracting Google Calendar data...")
-        print("="*80)
-        
         try:
             extractor = GoogleCalendarExtractor()
-            
-            # Export raw data
-            extractor.export_raw(str(raw_dir), max_results=args.max_results)
-            
-            if not args.raw_only:
-                ledger = extractor.extract_all(max_results=args.max_results)
-                for msg in ledger.messages:
-                    unified_ledger.add_message(msg)
-                extracted_count += len(ledger.messages)
-                print(f"Extracted {len(ledger.messages)} Google Calendar records")
-        
-        except Exception as e:
-            print(f"Error extracting Google Calendar: {e}")
+            count = extract_platform(extractor, "Google Calendar", raw_dir, args.raw_only, unified_ledger, args.max_results)
+            extracted_count += count
+        except MessageExtractorError as e:
+            logger.error(f"Skipping Google Calendar: {e}")
     
     # Export unified ledger
     if not args.raw_only and unified_ledger.messages:
-        print("\n" + "="*80)
-        print("Creating unified ledger...")
-        print("="*80)
+        logger.info("=" * 80)
+        logger.info("Creating unified ledger...")
+        logger.info("=" * 80)
         
-        # Export JSON
-        json_path = unified_dir / "unified_ledger.json"
-        unified_ledger.export_to_json(str(json_path))
-        print(f"Exported unified JSON ledger: {json_path}")
-        
-        # Export text timeline
-        text_path = unified_dir / "unified_timeline.txt"
-        unified_ledger.export_timeline_text(str(text_path))
-        print(f"Exported unified text timeline: {text_path}")
-        
-        print(f"\nTotal messages in unified ledger: {len(unified_ledger.messages)}")
-        print(f"Unique contacts: {len(unified_ledger.contact_registry)}")
-        print(f"Platforms: {', '.join(set(m.platform for m in unified_ledger.messages))}")
+        try:
+            # Export JSON
+            json_path = unified_dir / UNIFIED_LEDGER_JSON
+            unified_ledger.export_to_json(str(json_path))
+            logger.info(f"✓ Exported unified JSON ledger: {json_path}")
+            
+            # Export text timeline
+            text_path = unified_dir / UNIFIED_TIMELINE_TXT
+            unified_ledger.export_timeline_text(str(text_path))
+            logger.info(f"✓ Exported unified text timeline: {text_path}")
+            
+            logger.info(f"\nSummary:")
+            logger.info(f"  Total messages: {len(unified_ledger.messages)}")
+            logger.info(f"  Unique contacts: {len(unified_ledger.contact_registry)}")
+            logger.info(f"  Platforms: {', '.join(sorted(set(m.platform for m in unified_ledger.messages)))}")
+            
+        except Exception as e:
+            logger.error(f"Failed to export unified ledger: {e}")
     
-    print("\n" + "="*80)
-    print("Extraction complete!")
-    print("="*80)
-    print(f"Output directory: {output_dir}")
-    print(f"  - Raw data: {raw_dir}")
+    logger.info("=" * 80)
+    logger.info("Extraction complete!")
+    logger.info("=" * 80)
+    logger.info(f"Output directory: {output_dir}")
+    logger.info(f"  - Raw data: {raw_dir}")
     if not args.raw_only:
-        print(f"  - Unified ledger: {unified_dir}")
+        logger.info(f"  - Unified ledger: {unified_dir}")
+    
+    return 0
 
 
 if __name__ == "__main__":
-    main()
-
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        logger.warning("\nInterrupted by user")
+        sys.exit(130)
+    except Exception as e:
+        logger.critical(f"Fatal error: {e}")
+        sys.exit(1)

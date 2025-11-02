@@ -19,11 +19,11 @@ except ImportError:
     GOOGLE_API_AVAILABLE = False
 
 from schema import Message, Contact, UnifiedLedger
+from constants import GMAIL_FILTER_QUERY
+from exceptions import AuthenticationError, ExtractionError
+from utils.logger import get_logger
 
-# Filter start date: January 1, 2024
-FILTER_START_DATE = datetime(2024, 1, 1)
-# Gmail query filter for 2024 onwards (after:YYYY/MM/DD format)
-FILTER_START_DATE_STR = "after:2024/1/1"
+logger = get_logger(__name__)
 
 
 class GmailExtractor:
@@ -94,7 +94,7 @@ class GmailExtractor:
             results = self.service.users().messages().list(
                 userId='me', 
                 maxResults=min(max_results, 500),
-                q=FILTER_START_DATE_STR
+                q=GMAIL_FILTER_QUERY
             ).execute()
             messages = results.get('messages', [])
             
@@ -104,16 +104,16 @@ class GmailExtractor:
                     userId='me',
                     maxResults=500,
                     pageToken=results['nextPageToken'],
-                    q=FILTER_START_DATE_STR
+                    q=GMAIL_FILTER_QUERY
                 ).execute()
                 messages.extend(results.get('messages', []))
             
-            print(f"Found {len(messages)} emails to process")
+            logger.info(f"Found {len(messages)} emails to process")
             
             # Get full details for each message
             for i, msg in enumerate(messages):
                 if i % 100 == 0:
-                    print(f"Processing email {i}/{len(messages)}")
+                    logger.debug(f"Processing email {i}/{len(messages)}")
                 
                 try:
                     full_msg = self.service.users().messages().get(
@@ -125,11 +125,11 @@ class GmailExtractor:
                     message = self._parse_email(full_msg)
                     ledger.add_message(message)
                 except Exception as e:
-                    print(f"Error processing email {msg['id']}: {e}")
+                    logger.warning(f"Error processing email {msg['id']}: {e}")
                     continue
         
         except Exception as error:
-            print(f'An error occurred: {error}')
+            logger.error(f'An error occurred: {error}')
             raise
         
         return ledger
@@ -290,8 +290,8 @@ class GmailExtractor:
                     ).execute()
                     f.write(json.dumps(full_msg) + '\n')
                 except Exception as e:
-                    print(f"Error exporting email {msg['id']}: {e}")
+                    logger.warning(f"Error exporting email {msg['id']}: {e}")
                     continue
         
-        print(f"Exported {len(messages)} raw Gmail records to {output_path}")
+        logger.info(f"Exported {len(messages)} raw Gmail records to {output_path}")
 

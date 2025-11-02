@@ -9,12 +9,33 @@ import json
 
 @dataclass
 class Contact:
-    """Standardized contact representation"""
+    """
+    Standardized contact representation across all platforms
+    
+    Attributes:
+        name: Display name of the contact
+        email: Email address (if available)
+        phone: Phone number (if available)
+        platform_id: Original identifier from the source platform
+        platform: Source platform identifier
+    """
     name: Optional[str]
     email: Optional[str]
     phone: Optional[str]
-    platform_id: str  # Original ID from the platform
-    platform: str  # 'imessage', 'whatsapp', 'gmail', 'gcal'
+    platform_id: str
+    platform: str
+    
+    def __hash__(self):
+        """Make Contact hashable for use in sets/dicts"""
+        return hash((self.email, self.phone, self.platform_id, self.platform))
+    
+    def __eq__(self, other):
+        """Equality based on identifiers"""
+        if not isinstance(other, Contact):
+            return False
+        return (self.email == other.email and 
+                self.phone == other.phone and 
+                self.platform_id == other.platform_id)
 
 
 @dataclass
@@ -107,7 +128,8 @@ class Message:
 
 class UnifiedLedger:
     """
-    Main ledger that combines all messages/transactions from all platforms
+    Main ledger that combines all messages/transactions from all platforms.
+    Provides unified access with cross-platform contact linking.
     """
     def __init__(self, start_date: Optional[datetime] = None):
         """
@@ -117,8 +139,19 @@ class UnifiedLedger:
             start_date: Only include messages from this date onwards
         """
         self.messages: List[Message] = []
-        self.contact_registry: Dict[str, Contact] = {}  # Unified contact registry
+        self.contact_registry: Dict[str, Contact] = {}
         self.start_date = start_date
+    
+    def __len__(self) -> int:
+        """Return number of messages in ledger"""
+        return len(self.messages)
+    
+    def __repr__(self) -> str:
+        """String representation"""
+        platforms = set(m.platform for m in self.messages)
+        return (f"UnifiedLedger(messages={len(self.messages)}, "
+                f"contacts={len(self.contact_registry)}, "
+                f"platforms={platforms})")
     
     def add_message(self, message: Message):
         """Add a message to the ledger if it meets the date filter"""
@@ -161,39 +194,66 @@ class UnifiedLedger:
         """Generate chronological timeline of all messages"""
         return sorted(self.messages, key=lambda m: m.timestamp)
     
-    def export_to_json(self, output_path: str):
-        """Export entire ledger to JSON file"""
-        timeline = self.generate_timeline()
-        data = {
-            'total_messages': len(self.messages),
-            'platforms': list(set(m.platform for m in self.messages)),
-            'unique_contacts': len(self.contact_registry),
-            'messages': [m.to_dict() for m in timeline]
-        }
-        with open(output_path, 'w') as f:
-            json.dump(data, f, indent=2, default=str)
-    
-    def export_timeline_text(self, output_path: str):
-        """Export timeline to human-readable text file"""
-        timeline = self.generate_timeline()
-        with open(output_path, 'w') as f:
-            f.write("=" * 80 + "\n")
-            f.write("UNIFIED MESSAGE LEDGER - TIMELINE\n")
-            f.write("=" * 80 + "\n\n")
+    def export_to_json(self, output_path: str) -> None:
+        """
+        Export entire ledger to JSON file
+        
+        Args:
+            output_path: Path to output JSON file
             
-            for msg in timeline:
-                f.write(f"\n[{msg.platform.upper()}] {msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"From: {msg.sender.name or msg.sender.email or msg.sender.phone}\n")
+        Raises:
+            IOError: If file cannot be written
+        """
+        try:
+            timeline = self.generate_timeline()
+            data = {
+                'total_messages': len(self.messages),
+                'platforms': sorted(set(m.platform for m in self.messages)),
+                'unique_contacts': len(self.contact_registry),
+                'messages': [m.to_dict() for m in timeline]
+            }
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, default=str, ensure_ascii=False)
+        except IOError as e:
+            raise IOError(f"Failed to write JSON export to {output_path}: {e}")
+    
+    def export_timeline_text(self, output_path: str, max_preview: int = 200) -> None:
+        """
+        Export timeline to human-readable text file
+        
+        Args:
+            output_path: Path to output text file
+            max_preview: Maximum characters to preview from message body
+            
+        Raises:
+            IOError: If file cannot be written
+        """
+        try:
+            timeline = self.generate_timeline()
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write("=" * 80 + "\n")
+                f.write("UNIFIED MESSAGE LEDGER - TIMELINE\n")
+                f.write("=" * 80 + "\n\n")
                 
-                if msg.recipients:
-                    f.write(f"To: {', '.join(r.name or r.email or r.phone for r in msg.recipients)}\n")
-                
-                if msg.subject:
-                    f.write(f"Subject: {msg.subject}\n")
-                
-                if msg.event_start:
-                    f.write(f"Event: {msg.event_start.strftime('%Y-%m-%d %H:%M:%S')} - {msg.event_end.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                
-                f.write(f"\n{msg.body[:200]}{'...' if len(msg.body) > 200 else ''}\n")
-                f.write("-" * 80 + "\n")
+                for msg in timeline:
+                    f.write(f"\n[{msg.platform.upper()}] {msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"From: {msg.sender.name or msg.sender.email or msg.sender.phone}\n")
+                    
+                    if msg.recipients:
+                        f.write(f"To: {', '.join(r.name or r.email or r.phone for r in msg.recipients)}\n")
+                    
+                    if msg.subject:
+                        f.write(f"Subject: {msg.subject}\n")
+                    
+                    if msg.event_start:
+                        end_str = msg.event_end.strftime('%Y-%m-%d %H:%M:%S') if msg.event_end else 'N/A'
+                        f.write(f"Event: {msg.event_start.strftime('%Y-%m-%d %H:%M:%S')} - {end_str}\n")
+                    
+                    body_preview = msg.body[:max_preview]
+                    if len(msg.body) > max_preview:
+                        body_preview += '...'
+                    f.write(f"\n{body_preview}\n")
+                    f.write("-" * 80 + "\n")
+        except IOError as e:
+            raise IOError(f"Failed to write timeline export to {output_path}: {e}")
 
