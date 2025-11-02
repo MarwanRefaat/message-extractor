@@ -1,14 +1,10 @@
 # Contributing
 
-Thanks for wanting to contribute! Here's how to get started.
+Thanks for wanting to contribute!
 
 ## Development Setup
 
 ```bash
-# Clone the repo
-git clone <your-repo-url>
-cd message-extractor
-
 # Install
 ./install.sh
 
@@ -34,4 +30,3 @@ cd message-extractor
 ## Questions?
 
 Open an issue and ask!
-

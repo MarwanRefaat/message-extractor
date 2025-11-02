@@ -5,14 +5,10 @@ Extract and unify all your messages from **iMessage**, **WhatsApp**, **Gmail**, 
 ## Quick Start
 
 ```bash
-# 1. Clone and enter
-git clone <your-repo-url>
-cd message-extractor
-
-# 2. Install (one command!)
+# Install
 ./install.sh
 
-# 3. Extract messages
+# Extract messages
 ./run.sh --extract-all
 ```
 
@@ -79,7 +75,3 @@ output/
 ## License
 
 MIT License - Use freely!
-
-## Support
-
-Open an issue on GitHub for help.
