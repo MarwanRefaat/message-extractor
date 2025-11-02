@@ -226,25 +226,16 @@ Examples:
             logger.info(f"  Platforms: {', '.join(sorted(set(m.platform for m in unified_ledger.messages)))}")
             
             # Analytics
-            from collections import Counter
-            # Count by platform
-            platform_counts = Counter(m.platform for m in unified_ledger.messages)
+            platform_counts = unified_ledger.get_platform_counts()
             if platform_counts:
                 logger.info(f"\nMessages by platform:")
-                for platform, count in platform_counts.most_common():
+                for platform, count in sorted(platform_counts.items(), key=lambda x: x[1], reverse=True):
                     logger.info(f"  {platform}: {count:,}")
             
-            # Top contacts
-            sender_counts = Counter()
-            for msg in unified_ledger.messages:
-                sender = msg.sender
-                key = sender.phone or sender.email or sender.name or sender.platform_id
-                if key:
-                    sender_counts[key] += 1
-            
-            if sender_counts:
+            top_contacts = unified_ledger.get_top_contacts(10)
+            if top_contacts:
                 logger.info(f"\nTop 10 contacts:")
-                for contact, count in sender_counts.most_common(10):
+                for contact, count in top_contacts:
                     logger.info(f"  {contact}: {count:,}")
             
         except Exception as e:

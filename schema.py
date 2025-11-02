@@ -263,4 +263,67 @@ class UnifiedLedger:
                     f.write("-" * 80 + "\n")
         except IOError as e:
             raise IOError(f"Failed to write timeline export to {output_path}: {e}")
+    
+    def get_platform_counts(self) -> Dict[str, int]:
+        """
+        Get message counts by platform
+        
+        Returns:
+            Dictionary mapping platform names to counts
+        """
+        from collections import Counter
+        return dict(Counter(m.platform for m in self.messages))
+    
+    def get_top_contacts(self, n: int = 10) -> List[tuple]:
+        """
+        Get top N contacts by message count
+        
+        Args:
+            n: Number of top contacts to return
+            
+        Returns:
+            List of (contact_identifier, count) tuples
+        """
+        from collections import Counter
+        sender_counts = Counter()
+        for msg in self.messages:
+            sender = msg.sender
+            key = sender.phone or sender.email or sender.name or sender.platform_id
+            if key:
+                sender_counts[key] += 1
+        return sender_counts.most_common(n)
+    
+    def get_analytics_summary(self) -> Dict[str, Any]:
+        """
+        Get comprehensive analytics summary
+        
+        Returns:
+            Dictionary with analytics data
+        """
+        from collections import Counter
+        
+        # Count by platform
+        platform_counts = self.get_platform_counts()
+        
+        # Top contacts
+        top_contacts = dict(self.get_top_contacts(10))
+        
+        # Message type breakdown
+        tapbacks = sum(1 for m in self.messages if '[Tapback' in m.body)
+        with_text = sum(1 for m in self.messages if m.body and not m.body.startswith('[') and len(m.body.strip()) > 0)
+        attachments = sum(1 for m in self.messages if '[Attachment]' in m.body)
+        app_shares = sum(1 for m in self.messages if '[App Share]' in m.body)
+        
+        return {
+            'total_messages': len(self.messages),
+            'unique_contacts': len(self.contact_registry),
+            'platforms': platform_counts,
+            'top_contacts': top_contacts,
+            'message_types': {
+                'tapbacks': tapbacks,
+                'with_text': with_text,
+                'attachments': attachments,
+                'app_shares': app_shares,
+            }
+        }
 
