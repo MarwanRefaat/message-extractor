@@ -27,8 +27,12 @@ source .venv/bin/activate
 echo "⬆️  Upgrading pip..."
 pip install --upgrade pip -q
 
-# Install package
-echo "📥 Installing message extractor..."
+# Install dependencies
+echo "📥 Installing dependencies..."
+pip install -r requirements.txt -q
+
+# Install package in development mode
+echo "📦 Installing message extractor..."
 pip install -e . -q
 
 echo ""

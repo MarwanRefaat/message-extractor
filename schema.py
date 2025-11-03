@@ -247,6 +247,8 @@ class UnifiedLedger:
             IOError: If file cannot be written
         """
         try:
+            from utils.validators import sanitize_string
+            
             timeline = self.generate_timeline()
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write("=" * 80 + "\n")
@@ -255,7 +257,7 @@ class UnifiedLedger:
                 
                 for msg in timeline:
                     f.write(f"\n[{msg.platform.upper()}] {msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    sender_str = str(msg.sender.name or msg.sender.email or msg.sender.phone or 'Unknown')
+                    sender_str = sanitize_string(str(msg.sender.name or msg.sender.email or msg.sender.phone or 'Unknown'), 500)
                     f.write(f"From: {sender_str}\n")
                     
                     if msg.recipients:
@@ -263,12 +265,13 @@ class UnifiedLedger:
                         for r in msg.recipients:
                             val = r.name or r.email or r.phone
                             if val:
-                                recipient_strs.append(str(val))
+                                recipient_strs.append(sanitize_string(str(val), 500))
                         if recipient_strs:
                             f.write(f"To: {', '.join(recipient_strs)}\n")
                     
                     if msg.subject:
-                        f.write(f"Subject: {msg.subject}\n")
+                        subject_str = sanitize_string(str(msg.subject), 1000)
+                        f.write(f"Subject: {subject_str}\n")
                     
                     if msg.event_start:
                         end_str = msg.event_end.strftime('%Y-%m-%d %H:%M:%S') if msg.event_end else 'N/A'
@@ -277,7 +280,8 @@ class UnifiedLedger:
                     body_preview = msg.body[:max_preview]
                     if len(msg.body) > max_preview:
                         body_preview += '...'
-                    f.write(f"\n{body_preview}\n")
+                    body_str = sanitize_string(body_preview, 10000)
+                    f.write(f"\n{body_str}\n")
                     f.write("-" * 80 + "\n")
         except IOError as e:
             raise IOError(f"Failed to write timeline export to {output_path}: {e}")
