@@ -14,7 +14,8 @@ from constants import (
     DEFAULT_MAX_RESULTS, UNIFIED_LEDGER_JSON, UNIFIED_TIMELINE_TXT
 )
 from extractors import (
-    iMessageExtractor, WhatsAppExtractor, GmailExtractor, GoogleCalendarExtractor
+    iMessageExtractor, WhatsAppExtractor, GmailExtractor, GoogleCalendarExtractor,
+    AppleMailExtractor, LocalCalendarExtractor
 )
 from exceptions import (
     MessageExtractorError, ConfigurationError, ExtractionError
@@ -77,13 +78,13 @@ def extract_platform(extractor, platform_name: str, raw_dir: Path, raw_only: boo
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="Extract messages from iMessage, WhatsApp, Gmail, and Google Calendar",
+        description="Extract messages from iMessage, WhatsApp, Apple Mail, and Local Calendar",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python main.py --extract-imessage
   python main.py --extract-all
-  python main.py --extract-gmail --extract-gcal
+  python main.py --extract-gmail --extract-gcal  # Apple Mail & Local Calendar
   python main.py --extract-whatsapp --whatsapp-db /path/to/db
         """
     )
@@ -185,23 +186,23 @@ Examples:
             except MessageExtractorError as e:
                 logger.error(f"Skipping WhatsApp: {e}")
     
-    # Extract Gmail
+    # Extract Apple Mail (replaces Gmail - local Mail.app)
     if args.extract_all or args.extract_gmail:
         try:
-            extractor = GmailExtractor()
-            count = extract_platform(extractor, "Gmail", raw_dir, args.raw_only, unified_ledger, args.max_results)
+            extractor = AppleMailExtractor()
+            count = extract_platform(extractor, "Apple Mail", raw_dir, args.raw_only, unified_ledger, args.max_results)
             extracted_count += count
         except (MessageExtractorError, FileNotFoundError, ImportError) as e:
-            logger.warning(f"Skipping Gmail: {e}")
+            logger.warning(f"Skipping Apple Mail: {e}")
     
-    # Extract Google Calendar
+    # Extract Local Calendar (replaces Google Calendar - local Calendar.app)
     if args.extract_all or args.extract_gcal:
         try:
-            extractor = GoogleCalendarExtractor()
-            count = extract_platform(extractor, "Google Calendar", raw_dir, args.raw_only, unified_ledger, args.max_results)
+            extractor = LocalCalendarExtractor()
+            count = extract_platform(extractor, "Local Calendar", raw_dir, args.raw_only, unified_ledger, args.max_results)
             extracted_count += count
         except (MessageExtractorError, FileNotFoundError, ImportError) as e:
-            logger.warning(f"Skipping Google Calendar: {e}")
+            logger.warning(f"Skipping Local Calendar: {e}")
     
     # Export unified ledger
     if not args.raw_only and unified_ledger.messages:
