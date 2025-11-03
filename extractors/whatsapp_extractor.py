@@ -5,12 +5,10 @@ Extracts messages from WhatsApp SQLite database (iOS or Android backup)
 import sqlite3
 import os
 from datetime import datetime
-from typing import List, Optional
 import json
 
 from schema import Message, Contact, UnifiedLedger
 from constants import WHATSAPP_FILTER_TIMESTAMP_MS
-from exceptions import DatabaseError
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

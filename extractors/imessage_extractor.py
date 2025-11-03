@@ -7,13 +7,13 @@ import os
 import json
 import base64
 from datetime import datetime, timedelta
-from typing import List, Optional
-from pathlib import Path
+from typing import Optional
 
 from schema import Message, Contact, UnifiedLedger
 from constants import IMESSAGE_FILTER_TIMESTAMP_NS, IMESSAGE_EPOCH
-from exceptions import DatabaseError
 from utils.logger import get_logger
+from utils.contacts import get_contact_name, get_email_contact_name
+from .ocr_extractor import extract_from_attachment_path
 
 logger = get_logger(__name__)
 
@@ -160,6 +160,11 @@ class iMessageExtractor:
             if attachment_list:
                 # If there are attachments, it's an attachment message
                 body = "[Attachment]"
+                # Try to extract OCR text from first attachment for context
+                if attachment_list:
+                    ocr_text = extract_from_attachment_path(attachment_list[0], max_length=300)
+                    if ocr_text:
+                        body = f"[Attachment]\nOCR: {ocr_text}"
             elif item_type == 2:
                 body = "[Apple Pay Payment]"
             elif item_type == 3:
@@ -197,17 +202,22 @@ class iMessageExtractor:
             # Determine if phone_email is email or phone based on format
             email_val = None
             phone_val = None
+            contact_name = None
             if phone_email:
                 phone_email_str = str(phone_email)
                 if '@' in phone_email_str:
                     email_val = phone_email_str
+                    # Try to get contact name from Contacts app
+                    contact_name = get_email_contact_name(email_val)
                 else:
                     # Only set as phone if it looks like a phone number, not a URN or other ID
                     if phone_email_str.startswith('+') or phone_email_str.replace('+', '').replace('-', '').replace(' ', '').isdigit():
                         phone_val = phone_email_str
+                        # Try to get contact name from Contacts app
+                        contact_name = get_contact_name(phone_val)
             
             recipient = Contact(
-                name=None,
+                name=contact_name,
                 email=email_val,
                 phone=phone_val,
                 platform_id=str(phone_email) if phone_email else "unknown",
@@ -219,17 +229,22 @@ class iMessageExtractor:
             # Determine if phone_email is email or phone based on format
             email_val = None
             phone_val = None
+            contact_name = None
             if phone_email:
                 phone_email_str = str(phone_email)
                 if '@' in phone_email_str:
                     email_val = phone_email_str
+                    # Try to get contact name from Contacts app
+                    contact_name = get_email_contact_name(email_val)
                 else:
                     # Only set as phone if it looks like a phone number, not a URN or other ID
                     if phone_email_str.startswith('+') or phone_email_str.replace('+', '').replace('-', '').replace(' ', '').isdigit():
                         phone_val = phone_email_str
+                        # Try to get contact name from Contacts app
+                        contact_name = get_contact_name(phone_val)
             
             sender = Contact(
-                name=None,
+                name=contact_name,
                 email=email_val,
                 phone=phone_val,
                 platform_id=str(phone_email) if phone_email else "unknown",

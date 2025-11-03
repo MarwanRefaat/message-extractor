@@ -3,7 +3,6 @@ Logging utilities for the message extractor
 """
 import logging
 import sys
-from typing import Optional
 
 
 def get_logger(name: str, level: int = logging.INFO, use_colors: bool = True) -> logging.Logger:

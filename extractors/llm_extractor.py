@@ -40,11 +40,26 @@ class LLMExtractor:
         try:
             # Try to import GPT4All or other local LLM
             from gpt4all import GPT4All
-            self.llm = GPT4All(model_name=self.model_name, allow_download=True)
-            logger.info(f"Initialized {self.model_name}")
+            # Use a small, fast model for speed
+            # Try smaller models first for speed, fall back to default
+            fast_models = ["orca-mini-3b-gguf2-q4_0.gguf", "ggml-gpt4all-j-v1.3-groovy.bin", "gpt4all"]
+            model_initialized = False
+            
+            for model in fast_models:
+                try:
+                    self.llm = GPT4All(model_name=model, allow_download=True, device='cpu')
+                    logger.info(f"Initialized fast LLM model: {model}")
+                    model_initialized = True
+                    break
+                except Exception:
+                    continue
+            
+            if not model_initialized:
+                # Fall back to default
+                self.llm = GPT4All(model_name=self.model_name, allow_download=True, device='cpu')
+                logger.info(f"Initialized {self.model_name}")
         except ImportError:
             logger.warning("GPT4All not installed. Install with: pip install gpt4all")
-            # Could fall back to other LLMs like llama-cpp-python
             logger.warning("Falling back to manual extraction")
             self.llm = None
         except Exception as e:

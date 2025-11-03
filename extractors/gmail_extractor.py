@@ -4,7 +4,7 @@ Uses Gmail API to extract emails
 """
 import os
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 import json
 import base64
 import email.utils
@@ -166,15 +166,30 @@ class GmailExtractor:
         subject = headers.get('Subject', '')
         body = self._extract_body(msg['payload'])
         
-        # Parse attachments
+        # Parse attachments and add OCR text if available
         attachments = []
+        attachment_ocr_text = []
         if 'parts' in msg['payload']:
             for part in msg['parts']:
                 if part.get('filename'):
                     attachments.append(part['filename'])
+                    # Try OCR for image attachments
+                    try:
+                        from .ocr_extractor import extract_from_attachment_path
+                        ocr_text = extract_from_attachment_path(part['filename'], max_length=300)
+                        if ocr_text:
+                            attachment_ocr_text.append(f"{part['filename']}: {ocr_text}")
+                    except Exception:
+                        pass
+        
+        # Append OCR text to body if available
+        if attachment_ocr_text and body:
+            body = body + "\n\n[Attachment OCR]\n" + "\n".join(attachment_ocr_text)
+        elif attachment_ocr_text:
+            body = "[Attachment OCR]\n" + "\n".join(attachment_ocr_text)
         
         # Check if read
-        is_read = not msg.get('labelIds', []).__contains__('UNREAD')
+        is_read = 'UNREAD' not in msg.get('labelIds', [])
         
         # Get thread ID
         thread_id = msg.get('threadId')
@@ -215,8 +230,15 @@ class GmailExtractor:
         if not email_addr:
             email_addr = address_string
         
+        # Ensure name is extracted even if email is parsed differently
+        if not name and address_string != email_addr:
+            # Try to extract name from original string
+            parts = address_string.split('<')
+            if len(parts) > 1:
+                name = parts[0].strip().strip('"').strip("'")
+        
         return Contact(
-            name=name if name else email_addr,
+            name=name if name and name.strip() else None,
             email=email_addr,
             phone=None,
             platform_id=email_addr,
