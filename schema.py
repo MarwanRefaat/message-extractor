@@ -257,15 +257,29 @@ class UnifiedLedger:
                 
                 for msg in timeline:
                     f.write(f"\n[{msg.platform.upper()}] {msg.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    sender_str = sanitize_string(str(msg.sender.name or msg.sender.email or msg.sender.phone or 'Unknown'), 500)
+                    # Build sender string with name, email, and phone for better linking
+                    sender_parts = []
+                    if msg.sender.name:
+                        sender_parts.append(msg.sender.name)
+                    if msg.sender.email:
+                        sender_parts.append(f"<{msg.sender.email}>")
+                    elif msg.sender.phone:
+                        sender_parts.append(f"<{msg.sender.phone}>")
+                    sender_str = sanitize_string(' '.join(sender_parts) if sender_parts else 'Unknown', 500)
                     f.write(f"From: {sender_str}\n")
                     
                     if msg.recipients:
                         recipient_strs = []
                         for r in msg.recipients:
-                            val = r.name or r.email or r.phone
-                            if val:
-                                recipient_strs.append(sanitize_string(str(val), 500))
+                            parts = []
+                            if r.name:
+                                parts.append(r.name)
+                            if r.email:
+                                parts.append(f"<{r.email}>")
+                            elif r.phone:
+                                parts.append(f"<{r.phone}>")
+                            if parts:
+                                recipient_strs.append(sanitize_string(' '.join(parts), 500))
                         if recipient_strs:
                             f.write(f"To: {', '.join(recipient_strs)}\n")
                     
