@@ -1,76 +1,66 @@
 # Supabase Quick Start 🚀
 
-Get your message-extractor database set up in Supabase in 5 minutes!
+**Upload your message-extractor database to Supabase in 3 steps!**
 
-## Quick Setup
+## Step 1: Get Your Supabase Credentials
 
-1. **Create Supabase Project**
-   - Go to https://supabase.com/dashboard
-   - Click "New Project"
-   - Name: `message-extractor`
-   - Email: `marwan@marwanrefaat.com`
-   - Set a strong database password (save it!)
+1. Go to https://supabase.com and sign in
+2. Create a new project:
+   - Click **"Create new project"** in the Supabase dashboard
+   - If you see a Vercel integration dialog:
+     - Click **"Visit Vercel to create a project"**
+     - Create a new project on Vercel named: **`message-extractor`**
+     - Return to Supabase and continue
+   - **Project Name**: `message-extractor`
+   - **Database Password**: Save this! (you'll need it)
+   - Wait for project to finish provisioning (~2 minutes)
 
-2. **Run Migration**
-   - Open **SQL Editor** in Supabase dashboard
-   - Click "New Query"
-   - Copy entire `data/database/supabase_migration.sql` file
-   - Paste and click "Run"
+3. Get your connection details:
+   - Go to **Settings** → **General**
+   - Copy your **Reference ID** (e.g., `xyzabc123`)
+   - Go to **Settings** → **Database**
+   - Copy your **Database Password**
 
-3. **Verify**
-   ```sql
-   SELECT table_name FROM information_schema.tables 
-   WHERE table_schema = 'public' 
-   ORDER BY table_name;
-   ```
-   Should show 6 tables: contacts, conversations, messages, conversation_participants, calendar_events, message_tags
+## Step 2: Run the Upload Script
 
-## What You Get
-
-✅ 6 core tables with relationships  
-✅ Automatic triggers for statistics  
-✅ 3 helpful views for queries  
-✅ Full indexes for performance  
-✅ PostgreSQL 15+ compatible  
-
-## Database Schema
-
-```
-contacts (1) ──┐
-               ├──> messages (N)
-conversations (1) ──┘
-
-messages (1) ──> calendar_events (0..1)
-messages (1) ──> message_tags (N)
-
-conversations (M) <──> contacts (M) via conversation_participants
+```bash
+python scripts/upload_to_supabase.py \
+  --project-ref YOUR_REFERENCE_ID \
+  --password YOUR_DATABASE_PASSWORD
 ```
 
-## Connection String
+**That's it!** The script will:
+- ✅ Create the complete database schema
+- ✅ Migrate all your data
+- ✅ Verify everything works
+- ✅ Run test queries
 
-After setup, get your connection string from:
-**Settings → Database → Connection string**
+## Step 3: Verify (Optional)
 
-Format:
-```
-postgresql://postgres:[PASSWORD]@db.[project-ref].supabase.co:5432/postgres
-```
+Check your data in Supabase:
+1. Go to **Table Editor** in Supabase dashboard
+2. You should see all your tables with data
+3. Try querying: `SELECT * FROM recent_conversations LIMIT 10;`
 
-## Full Documentation
+## What Gets Uploaded?
 
-See [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) for detailed instructions, troubleshooting, and advanced configuration.
+- 📇 **202+ contacts** from all platforms
+- 💬 **187+ conversations** (iMessage, WhatsApp, etc.)
+- 📨 **817+ messages** 
+- 👥 **454+ conversation participants**
+- 📊 All views, triggers, and indexes
 
-## Next Steps
+## Troubleshooting
 
-1. Import your data using your existing import scripts
-2. Query your data using the views:
-   - `SELECT * FROM platform_summary;`
-   - `SELECT * FROM recent_conversations LIMIT 20;`
-   - `SELECT * FROM contact_statistics ORDER BY total_messages DESC LIMIT 10;`
+**Connection Error?**
+- Check your Reference ID is correct
+- Verify database password is correct
+- Make sure project is fully provisioned
 
-## Support
+**Need Help?**
+- See `docs/SUPABASE_UPLOAD.md` for detailed guide
+- Check `scripts/upload_to_supabase.py --help`
 
-- Migration script: `data/database/supabase_migration.sql`
-- Full guide: `docs/SUPABASE_SETUP.md`
-- Schema docs: `data/database/schema_diagram.md`
+---
 
+**Ready to deploy?** Just get your credentials and run the command above! ✨

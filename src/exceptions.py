@@ -38,3 +38,18 @@ class DataFormatError(MessageExtractorError):
     """Error parsing or formatting data"""
     pass
 
+
+class RetryableError(MessageExtractorError):
+    """Error that can be retried"""
+    pass
+
+
+class ResourceError(MessageExtractorError):
+    """Error accessing resources (files, network, etc.)"""
+    pass
+
+
+class ValidationError(MessageExtractorError):
+    """Data validation error"""
+    pass
+

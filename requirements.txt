@@ -12,3 +12,6 @@ Pillow>=10.0.0
 jinja2>=3.0.0
 bleach>=6.0.0
 markupsafe>=2.0.0
+
+# Database dependencies
+psycopg2-binary>=2.9.0  # PostgreSQL/Supabase support

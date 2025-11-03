@@ -295,7 +295,7 @@ class ChatDatabaseCreator:
             ON conversation_participants(conversation_id)
         """)
         
-        # 5. Calendar events table
+        # 5. Calendar events table (enhanced schema)
         self.conn.execute("""
             CREATE TABLE calendar_events (
                 event_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -304,12 +304,38 @@ class ChatDatabaseCreator:
                 event_end TIMESTAMP,
                 event_duration_seconds INTEGER,
                 event_location TEXT,
-                event_status TEXT,
+                event_status TEXT DEFAULT 'confirmed',
+                event_timezone TEXT,
                 is_recurring BOOLEAN DEFAULT 0,
                 recurrence_pattern TEXT,
+                calendar_name TEXT,
+                organizer_email TEXT,
+                attendee_count INTEGER DEFAULT 0,
+                has_video_conference BOOLEAN DEFAULT 0,
+                video_conference_url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(message_id),
                 FOREIGN KEY(message_id) REFERENCES messages(message_id)
             )
+        """)
+        
+        # Indexes for calendar events
+        self.conn.execute("""
+            CREATE INDEX idx_calendar_events_start 
+            ON calendar_events(event_start DESC)
+        """)
+        self.conn.execute("""
+            CREATE INDEX idx_calendar_events_status 
+            ON calendar_events(event_status)
+        """)
+        self.conn.execute("""
+            CREATE INDEX idx_calendar_events_location 
+            ON calendar_events(event_location) WHERE event_location IS NOT NULL
+        """)
+        self.conn.execute("""
+            CREATE INDEX idx_calendar_events_recurring 
+            ON calendar_events(is_recurring) WHERE is_recurring = 1
         """)
         
         # 6. Message tags table

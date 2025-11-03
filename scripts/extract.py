@@ -157,6 +157,19 @@ Examples:
     )
     
     parser.add_argument(
+        '--import-calendar-to-db',
+        action='store_true',
+        help='Import calendar events into SQLite database after extraction'
+    )
+    
+    parser.add_argument(
+        '--db-path',
+        type=str,
+        default='data/database/chats.db',
+        help='Path to SQLite database file for calendar import'
+    )
+    
+    parser.add_argument(
         '--max-results',
         type=int,
         default=DEFAULT_MAX_RESULTS,
@@ -214,10 +227,11 @@ Examples:
             logger.warning(f"Skipping Gmail: {e}")
     
     # Extract Google Calendar
+    calendar_extractor = None
     if args.extract_all or args.extract_gcal:
         try:
-            extractor = GoogleCalendarExtractor()
-            count = extract_platform(extractor, "Google Calendar", raw_dir, args.raw_only, unified_ledger, args.max_results)
+            calendar_extractor = GoogleCalendarExtractor()
+            count = extract_platform(calendar_extractor, "Google Calendar", raw_dir, args.raw_only, unified_ledger, args.max_results)
             extracted_count += count
         except (MessageExtractorError, FileNotFoundError, ImportError) as e:
             logger.warning(f"Skipping Google Calendar: {e}")
@@ -296,6 +310,25 @@ Examples:
             
         except Exception as e:
             logger.error(f"Failed to export unified ledger: {e}")
+    
+    # Import calendar events to database if requested
+    if args.import_calendar_to_db and calendar_extractor:
+        logger.info("=" * 80)
+        logger.info("Importing calendar events to database...")
+        logger.info("=" * 80)
+        try:
+            sys.path.insert(0, str(Path(__file__).parent))
+            from import_calendar_events import CalendarEventImporter
+            
+            importer = CalendarEventImporter(db_path=args.db_path)
+            imported_count = importer.import_events(calendar_extractor)
+            importer.close()
+            
+            logger.info(f"✓ Successfully imported {imported_count} calendar events to database")
+        except Exception as e:
+            logger.error(f"Failed to import calendar events to database: {e}")
+            import traceback
+            traceback.print_exc()
     
     logger.info("=" * 80)
     logger.info("Extraction complete!")

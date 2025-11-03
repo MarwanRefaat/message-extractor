@@ -7,7 +7,8 @@ import subprocess
 from datetime import datetime
 from typing import List, Optional
 import json
-import email.message
+from email import message_from_bytes
+from email.message import Message as EmailMessage
 import email.utils
 import re
 from pathlib import Path
@@ -37,20 +38,20 @@ class GmailExtractor:
         """
         self.start_date = FILTER_START_DATE
         
+        # Get project root (go up from src/extractors/)
+        project_root = Path(__file__).parent.parent.parent
+        # If we're in src/, go up one more level
+        if project_root.name == "src":
+            project_root = project_root.parent
+        
         # Find gmail-exporter binary
         if gmail_exporter_path:
             self.gmail_exporter_path = gmail_exporter_path
         else:
             # Try to find it in tools directory
-            # Get the project root (go up from src/extractors/)
-            script_dir = Path(__file__).parent.parent.parent
-            # If we're in src/, go up one more level
-            if script_dir.name == "src":
-                script_dir = script_dir.parent
-            
             possible_paths = [
-                script_dir / "tools" / "gmail-exporter" / "gmail-exporter",
-                script_dir / "tools" / "gmail-exporter",
+                project_root / "tools" / "gmail-exporter" / "gmail-exporter",
+                project_root / "tools" / "gmail-exporter",
                 Path("tools/gmail-exporter/gmail-exporter"),
                 Path("tools/gmail-exporter"),
                 Path("../tools/gmail-exporter/gmail-exporter"),
@@ -65,7 +66,7 @@ class GmailExtractor:
             
             if not self.gmail_exporter_path:
                 # Try to build it
-                build_dir = script_dir / "tools" / "gmail-exporter"
+                build_dir = project_root / "tools" / "gmail-exporter"
                 if build_dir.exists():
                     logger.info(f"Building gmail-exporter from {build_dir}...")
                     try:
@@ -93,7 +94,12 @@ class GmailExtractor:
                 "  cd tools/gmail-exporter && go build -o gmail-exporter"
             )
         
-        self.export_dir = Path(export_dir) if export_dir else Path("gmail_export")
+        # Make export directory absolute based on project root
+        if export_dir:
+            self.export_dir = Path(export_dir).resolve()
+        else:
+            self.export_dir = project_root / "gmail_export"
+        
         self.eml_dir = self.export_dir / "messages"
         self.spreadsheet_path = self.export_dir / "messages.xlsx"
     
@@ -153,7 +159,7 @@ class GmailExtractor:
             logger.error(f"Error running gmail-exporter: {e}")
             return False
     
-    def _email_matches_target(self, msg: email.message.Message) -> bool:
+    def _email_matches_target(self, msg: EmailMessage) -> bool:
         """Check if email is to/from one of our target email addresses"""
         # Get From, To, Cc, Bcc headers
         from_addr = msg.get("From", "")
@@ -181,7 +187,7 @@ class GmailExtractor:
         """Parse an EML file and convert to Message"""
         try:
             with open(eml_path, 'rb') as f:
-                msg = email.message.message_from_bytes(f.read())
+                msg = message_from_bytes(f.read())
             
             # Filter by target emails
             if not self._email_matches_target(msg):
@@ -296,7 +302,7 @@ class GmailExtractor:
             logger.warning(f"Error parsing EML file {eml_path}: {e}")
             return None
     
-    def _extract_body(self, msg: email.message.Message) -> str:
+    def _extract_body(self, msg: EmailMessage) -> str:
         """Extract body text from email message"""
         body = ""
         
@@ -353,10 +359,18 @@ class GmailExtractor:
         eml_files = list(self.eml_dir.rglob("*.eml"))
         logger.info(f"Found {len(eml_files)} EML files to process")
         
-        # Parse EML files
+        if not eml_files:
+            logger.warning("No EML files found to process")
+            return ledger
+        
+        # Parse EML files with better error handling and progress tracking
         processed = 0
-        for eml_path in eml_files:
+        failed = 0
+        skipped = 0
+        
+        for i, eml_path in enumerate(eml_files):
             if processed >= max_results:
+                logger.info(f"Reached max_results limit ({max_results}), stopping")
                 break
             
             try:
@@ -364,15 +378,32 @@ class GmailExtractor:
                 if message:
                     ledger.add_message(message)
                     processed += 1
+                else:
+                    skipped += 1  # Filtered out by date or email match
                     
-                    if processed % 100 == 0:
-                        logger.debug(f"Processed {processed}/{len(eml_files)} emails")
+                # Log progress every 100 files or at intervals
+                if (i + 1) % 100 == 0 or (i + 1) == len(eml_files):
+                    logger.info(
+                        f"Progress: {i + 1}/{len(eml_files)} files "
+                        f"(processed: {processed}, skipped: {skipped}, failed: {failed})"
+                    )
                         
+            except KeyboardInterrupt:
+                logger.warning(f"Interrupted by user at file {i + 1}/{len(eml_files)}")
+                logger.info(f"Processed {processed} emails before interruption")
+                raise
             except Exception as e:
-                logger.warning(f"Error processing {eml_path}: {e}")
+                failed += 1
+                # Only log warnings for unexpected errors, not import issues
+                if "message_from_bytes" not in str(e) and "module" not in str(e):
+                    logger.warning(f"Error processing {eml_path.name}: {e}")
+                # Continue processing other files
                 continue
         
-        logger.info(f"Extracted {len(ledger.messages)} emails matching criteria")
+        logger.info(
+            f"Extraction complete: {processed} emails extracted, "
+            f"{skipped} skipped (date/email filter), {failed} failed"
+        )
         return ledger
     
     def export_raw(self, output_dir: str, max_results: int = 10000):
