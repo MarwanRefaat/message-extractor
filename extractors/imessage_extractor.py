@@ -59,6 +59,7 @@ class iMessageExtractor:
             m.item_type,
             m.associated_message_type,
             m.associated_message_emoji,
+            m.associated_message_guid,
             h.id as handle_id,
             COALESCE(h.uncanonicalized_id, h.id) as phone_email
         FROM message m
@@ -72,7 +73,7 @@ class iMessageExtractor:
         
         # Get attachment information
         attachment_query = """
-        SELECT attachment_id, filename, mime_type
+        SELECT attachment_id, a.filename, a.mime_type
         FROM message_attachment_join maj
         JOIN attachment a ON maj.attachment_id = a.rowid
         WHERE maj.message_id = ?
@@ -92,6 +93,15 @@ class iMessageExtractor:
         for row in rows:
             try:
                 message = self._row_to_message(row, cursor, attachment_query, chat_participant_query)
+                
+                # Skip truly empty messages that are not tapbacks and have no attachments
+                # These appear to be iOS system messages or artifacts
+                is_tapback = message.body and '[Tapback' in message.body
+                if (not message.body or len(message.body.strip()) == 0) and \
+                   not message.attachments and \
+                   not is_tapback:
+                    continue
+                
                 ledger.add_message(message)
             except Exception as e:
                 logger.warning(f"Error processing iMessage row {row['rowid']}: {e}")
@@ -116,33 +126,39 @@ class iMessageExtractor:
         # Treat whitespace-only strings as empty
         if body and not body.strip():
             body = ""
-        if not body and 'item_type' in row.keys():
-            item_type = row['item_type']
-            # iMessage Tapbacks/reactions
-            if item_type == 0:
-                # Check associated_message_type for specific tapback type
-                tapback_type = row['associated_message_type'] if 'associated_message_type' in row.keys() else 0
-                tapback_emoji = row['associated_message_emoji'] if 'associated_message_emoji' in row.keys() else None
-                
-                tapback_map = {
-                    2000: "Liked",
-                    2001: "Disliked",
-                    2002: "Loved",
-                    2003: "Laughed At",
-                    2004: "Emphasized",
-                    2005: "Questioned",
-                    2006: "Custom Emoji",  # Custom emoji tapback
-                    3000: "Interacted with Shake"
-                }
-                if tapback_type in tapback_map:
-                    # For custom emojis (type 2006), include the emoji
-                    if tapback_type == 2006 and tapback_emoji:
-                        body = f"[Tapback: {tapback_emoji}]"
-                    else:
-                        body = f"[Tapback: {tapback_map[tapback_type]}]"
+        
+        # Check if this is a tapback - the definitive marker is associated_message_guid
+        # NOT item_type, because iOS misuses item_type
+        is_tapback = 'associated_message_guid' in row.keys() and row['associated_message_guid'] is not None
+        
+        if is_tapback:
+            # This is a real tapback - check associated_message_type for specific tapback type
+            tapback_type = row['associated_message_type'] if 'associated_message_type' in row.keys() else 0
+            tapback_emoji = row['associated_message_emoji'] if 'associated_message_emoji' in row.keys() else None
+            
+            tapback_map = {
+                2000: "Liked",
+                2001: "Disliked",
+                2002: "Loved",
+                2003: "Laughed At",
+                2004: "Emphasized",
+                2005: "Questioned",
+                2006: "Custom Emoji",  # Custom emoji tapback
+                3000: "Interacted with Shake"
+            }
+            if tapback_type in tapback_map:
+                # For custom emojis (type 2006), include the emoji
+                if tapback_type == 2006 and tapback_emoji:
+                    body = f"[Tapback: {tapback_emoji}]"
                 else:
-                    body = "[Tapback/Reaction]"
-            elif item_type == 1:
+                    body = f"[Tapback: {tapback_map[tapback_type]}]"
+            else:
+                body = "[Tapback/Reaction]"
+        elif not body and 'item_type' in row.keys():
+            # This is NOT a tapback, but has no text - check other item_types
+            item_type = row['item_type']
+            if attachment_list:
+                # If there are attachments, it's an attachment message
                 body = "[Attachment]"
             elif item_type == 2:
                 body = "[Apple Pay Payment]"
@@ -154,7 +170,7 @@ class iMessageExtractor:
                 body = "[Location]"
             elif item_type == 6:
                 body = "[Collaboration]"
-            elif item_type is not None:
+            elif item_type is not None and item_type != 0:
                 body = f"[Message Type {item_type}]"
         
         # Determine sender and recipients
