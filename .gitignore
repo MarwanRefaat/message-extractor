@@ -31,6 +31,13 @@ output/
 *.txt
 token.json
 
+# Exported data directories
+IMESSAGE_EXPORT/
+IMESSAGE_EXPORT_TEMP/
+raw_originals/
+_archived_exports/
+CONTACTS_EXPORT/
+
 # Credentials
 credentials.json
 *.pem
@@ -62,4 +69,19 @@ htmlcov/
 
 # iMessage database
 chat.db
+
+# Data exports and personal files
+CONTACTS_EXPORT/
+IMESSAGE_EXPORT_TEMP/
+_archived_exports/
+_archived_tools/
+CHAT_DATABASE_SUMMARY.md
+ENHANCED_DATABASE_SUMMARY.md
+WHATSAPP_INTEGRATION_SUMMARY.md
+database_report.txt
+
+# CSV data files (uncomment if you want to exclude all CSV files)
+# *.csv
+# But allow documentation CSVs
+# !docs/**/*.csv
 

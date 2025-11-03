@@ -53,6 +53,17 @@ Only extracts messages from **2024 onwards** for privacy and speed.
 3. Run: `./run.sh --extract-gmail`
 
 ### WhatsApp
+Two options available:
+
+**Option 1: Import to Unified Database (Recommended)**
+- Extract database from device backup
+- Import into chat database:
+  ```bash
+  python3 import_whatsapp_to_database.py --android --msg-db /path/to/msgstore.db --db chats.db
+  ```
+- See [WhatsApp Import Guide](docs/WHATSAPP_IMPORT.md) for details
+
+**Option 2: Extract to JSON Timeline**
 - Extract database from device backup
 - Run with `--whatsapp-db /path/to/database`
 

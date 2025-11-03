@@ -7,6 +7,10 @@ from .gmail_extractor import GmailExtractor
 from .gcal_extractor import GoogleCalendarExtractor
 from .apple_mail_extractor import AppleMailExtractor
 from .local_calendar_extractor import LocalCalendarExtractor
+from .google_takeout_calendar_extractor import GoogleTakeoutCalendarExtractor
+from .google_takeout_chat_extractor import GoogleTakeoutChatExtractor
+from .google_takeout_meet_extractor import GoogleTakeoutMeetExtractor
+from .google_takeout_contacts_extractor import GoogleTakeoutContactsExtractor
 
 __all__ = [
     'iMessageExtractor',
@@ -14,6 +18,10 @@ __all__ = [
     'GmailExtractor',
     'GoogleCalendarExtractor',
     'AppleMailExtractor',
-    'LocalCalendarExtractor'
+    'LocalCalendarExtractor',
+    'GoogleTakeoutCalendarExtractor',
+    'GoogleTakeoutChatExtractor',
+    'GoogleTakeoutMeetExtractor',
+    'GoogleTakeoutContactsExtractor'
 ]
 

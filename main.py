@@ -15,7 +15,9 @@ from constants import (
 )
 from extractors import (
     iMessageExtractor, WhatsAppExtractor, GmailExtractor, GoogleCalendarExtractor,
-    AppleMailExtractor, LocalCalendarExtractor
+    AppleMailExtractor, LocalCalendarExtractor,
+    GoogleTakeoutCalendarExtractor, GoogleTakeoutChatExtractor,
+    GoogleTakeoutMeetExtractor, GoogleTakeoutContactsExtractor
 )
 from exceptions import (
     MessageExtractorError, ConfigurationError, ExtractionError
@@ -127,6 +129,19 @@ Examples:
     )
     
     parser.add_argument(
+        '--extract-takeout',
+        action='store_true',
+        help='Extract from Google Takeout (Calendar, Chat, Meet, Contacts)'
+    )
+    
+    parser.add_argument(
+        '--takeout-path',
+        type=str,
+        default='raw_originals/Takeout',
+        help='Path to Google Takeout directory (default: raw_originals/Takeout)'
+    )
+    
+    parser.add_argument(
         '--extract-all',
         action='store_true',
         help='Extract from all available sources'
@@ -203,6 +218,43 @@ Examples:
             extracted_count += count
         except (MessageExtractorError, FileNotFoundError, ImportError) as e:
             logger.warning(f"Skipping Local Calendar: {e}")
+    
+    # Extract Google Takeout Calendar
+    if args.extract_takeout or args.extract_all:
+        try:
+            extractor = GoogleTakeoutCalendarExtractor(os.path.join(args.takeout_path, 'Calendar'))
+            count = extract_platform(extractor, "Google Takeout Calendar", raw_dir, args.raw_only, unified_ledger, args.max_results)
+            extracted_count += count
+        except (MessageExtractorError, FileNotFoundError, ImportError) as e:
+            logger.warning(f"Skipping Google Takeout Calendar: {e}")
+    
+    # Extract Google Takeout Chat
+    if args.extract_takeout or args.extract_all:
+        try:
+            extractor = GoogleTakeoutChatExtractor(os.path.join(args.takeout_path, 'Google Chat'))
+            count = extract_platform(extractor, "Google Takeout Chat", raw_dir, args.raw_only, unified_ledger, args.max_results)
+            extracted_count += count
+        except (MessageExtractorError, FileNotFoundError, ImportError) as e:
+            logger.warning(f"Skipping Google Takeout Chat: {e}")
+    
+    # Extract Google Takeout Meet
+    if args.extract_takeout or args.extract_all:
+        try:
+            extractor = GoogleTakeoutMeetExtractor(os.path.join(args.takeout_path, 'Google Meet'))
+            count = extract_platform(extractor, "Google Takeout Meet", raw_dir, args.raw_only, unified_ledger, args.max_results)
+            extracted_count += count
+        except (MessageExtractorError, FileNotFoundError, ImportError) as e:
+            logger.warning(f"Skipping Google Takeout Meet: {e}")
+    
+    # Extract Google Takeout Contacts (for contact resolution)
+    # Note: Contacts are automatically added to ledger when messages reference them
+    if args.extract_takeout or args.extract_all:
+        try:
+            extractor = GoogleTakeoutContactsExtractor(os.path.join(args.takeout_path, 'Contacts'))
+            contacts = extractor.extract_all()
+            logger.info(f"✓ Extracted {len(contacts)} contacts (will be resolved via messages)")
+        except (MessageExtractorError, FileNotFoundError, ImportError) as e:
+            logger.warning(f"Skipping Google Takeout Contacts: {e}")
     
     # Export unified ledger
     if not args.raw_only and unified_ledger.messages:
