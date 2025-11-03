@@ -2,7 +2,7 @@
 Message extraction modules
 """
 from .imessage_extractor import iMessageExtractor
-from .whatsapp_extractor import WhatsAppExtractor
+# WhatsApp extraction now uses import_whatsapp_to_database.py with WhatsApp Chat Exporter
 from .gmail_extractor import GmailExtractor
 from .gcal_extractor import GoogleCalendarExtractor
 from .apple_mail_extractor import AppleMailExtractor
@@ -14,7 +14,6 @@ from .google_takeout_contacts_extractor import GoogleTakeoutContactsExtractor
 
 __all__ = [
     'iMessageExtractor',
-    'WhatsAppExtractor',
     'GmailExtractor',
     'GoogleCalendarExtractor',
     'AppleMailExtractor',
