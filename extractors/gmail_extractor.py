@@ -191,9 +191,12 @@ class GmailExtractor:
                             # Quick OCR on first attachment only
                             ocr_text = extract_from_attachment_path(filename, max_length=200, max_file_size_mb=3)
                             if ocr_text:
-                                attachment_info.append(f"[Attachment: {ocr_text}]{file_size}")
+                                if file_size:
+                                    attachment_info.append(f"[Attachment: {ocr_text}] ({file_size.strip(' ()')})")
+                                else:
+                                    attachment_info.append(f"[Attachment: {ocr_text}]")
                             elif file_size:
-                                attachment_info.append(f"[Attachment]{file_size}")
+                                attachment_info.append(f"[Attachment] ({file_size.strip(' ()')})")
                             else:
                                 attachment_info.append(f"[Attachment: {filename}]")
                         except Exception:
