@@ -166,27 +166,48 @@ class GmailExtractor:
         subject = headers.get('Subject', '')
         body = self._extract_body(msg['payload'])
         
-        # Parse attachments and add OCR text if available
+        # Parse attachments with OCR and size info (fast, optimized)
         attachments = []
-        attachment_ocr_text = []
+        attachment_info = []
         if 'parts' in msg['payload']:
-            for part in msg['parts']:
+            for i, part in enumerate(msg['parts']):
                 if part.get('filename'):
-                    attachments.append(part['filename'])
-                    # Try OCR for image attachments
-                    try:
-                        from .ocr_extractor import extract_from_attachment_path
-                        ocr_text = extract_from_attachment_path(part['filename'], max_length=300)
-                        if ocr_text:
-                            attachment_ocr_text.append(f"{part['filename']}: {ocr_text}")
-                    except Exception:
-                        pass
+                    filename = part['filename']
+                    attachments.append(filename)
+                    
+                    # Only process first attachment for OCR (speed optimization)
+                    if i == 0:
+                        try:
+                            from .ocr_extractor import extract_from_attachment_path
+                            # Get file size if available
+                            file_size = ""
+                            if os.path.exists(filename):
+                                try:
+                                    size_mb = os.path.getsize(filename) / (1024 * 1024)
+                                    file_size = f" ({size_mb:.1f}MB)" if size_mb >= 1 else f" ({size_mb * 1024:.0f}KB)"
+                                except Exception:
+                                    pass
+                            
+                            # Quick OCR on first attachment only
+                            ocr_text = extract_from_attachment_path(filename, max_length=200, max_file_size_mb=3)
+                            if ocr_text:
+                                attachment_info.append(f"[Attachment: {ocr_text}]{file_size}")
+                            elif file_size:
+                                attachment_info.append(f"[Attachment]{file_size}")
+                            else:
+                                attachment_info.append(f"[Attachment: {filename}]")
+                        except Exception:
+                            attachment_info.append(f"[Attachment: {filename}]")
+                    else:
+                        # Just add filename for other attachments
+                        attachment_info.append(f"[Attachment: {filename}]")
         
-        # Append OCR text to body if available
-        if attachment_ocr_text and body:
-            body = body + "\n\n[Attachment OCR]\n" + "\n".join(attachment_ocr_text)
-        elif attachment_ocr_text:
-            body = "[Attachment OCR]\n" + "\n".join(attachment_ocr_text)
+        # Append attachment info to body if available
+        if attachment_info:
+            if body:
+                body = body + " " + " ".join(attachment_info)
+            else:
+                body = " ".join(attachment_info)
         
         # Check if read
         is_read = 'UNREAD' not in msg.get('labelIds', [])

@@ -158,13 +158,70 @@ class iMessageExtractor:
             # This is NOT a tapback, but has no text - check other item_types
             item_type = row['item_type']
             if attachment_list:
-                # If there are attachments, it's an attachment message
-                body = "[Attachment]"
-                # Try to extract OCR text from first attachment for context
-                if attachment_list:
-                    ocr_text = extract_from_attachment_path(attachment_list[0], max_length=300)
-                    if ocr_text:
-                        body = f"[Attachment]\nOCR: {ocr_text}"
+                # If there are attachments, format with size and OCR if available
+                attachment_info = []
+                for att in attachment_list[:3]:  # Limit to first 3 for speed
+                    try:
+                        # Try to get file size
+                        file_size = None
+                        actual_path = None
+                        
+                        # Expand ~ in path if present
+                        expanded_att = os.path.expanduser(att) if att else None
+                        
+                        # Try paths in order
+                        possible_paths = []
+                        if expanded_att:
+                            possible_paths.append(expanded_att)  # Try expanded path first
+                        if att and not att.startswith('~'):
+                            possible_paths.append(att)  # Try original path
+                        # Try relative to Messages/Attachments
+                        if att:
+                            possible_paths.append(os.path.join(os.path.expanduser("~"), "Library/Messages/Attachments", os.path.basename(att)))
+                        
+                        for path in possible_paths:
+                            if path and os.path.exists(path):
+                                actual_path = path
+                                break
+                        
+                        # Get file size if we found the file
+                        if actual_path:
+                            try:
+                                size_bytes = os.path.getsize(actual_path)
+                                size_mb = size_bytes / (1024 * 1024)
+                                if size_mb >= 1:
+                                    file_size = f"{size_mb:.1f}MB"
+                                else:
+                                    file_size = f"{size_mb * 1024:.0f}KB"
+                            except Exception:
+                                pass
+                        
+                        # Try quick OCR (only on first attachment for speed)
+                        ocr_text = None
+                        if att == attachment_list[0] and actual_path:  # Only OCR first attachment for speed
+                            ocr_text = extract_from_attachment_path(actual_path, max_length=200, max_file_size_mb=3)  # Smaller limit for speed
+                        
+                        # Format attachment info
+                        if ocr_text:
+                            if file_size:
+                                attachment_info.append(f"[Attachment: {ocr_text}] ({file_size})")
+                            else:
+                                attachment_info.append(f"[Attachment: {ocr_text}]")
+                        elif file_size:
+                            attachment_info.append(f"[Attachment] ({file_size})")
+                        else:
+                            # Show filename if we have it
+                            filename = os.path.basename(att) if att else "file"
+                            attachment_info.append(f"[Attachment: {filename}]")
+                    except Exception as e:
+                        # Fallback to basic format
+                        filename = os.path.basename(att) if att else "file"
+                        attachment_info.append(f"[Attachment: {filename}]")
+                
+                if len(attachment_list) > 3:
+                    attachment_info.append(f"[+{len(attachment_list) - 3} more]")
+                
+                body = " ".join(attachment_info)
             elif item_type == 2:
                 body = "[Apple Pay Payment]"
             elif item_type == 3:

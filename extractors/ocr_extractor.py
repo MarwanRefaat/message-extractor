@@ -41,16 +41,17 @@ def _check_ocr_available():
         return False
 
 
-def extract_text_from_image(image_path: str, max_length: int = 500) -> Optional[str]:
+def extract_text_from_image(image_path: str, max_length: int = 300, max_file_size_mb: int = 5) -> Optional[str]:
     """
-    Extract text from an image using Tesseract OCR
+    Extract text from an image using Tesseract OCR (fast, optimized for speed)
     
     Args:
         image_path: Path to image file
         max_length: Maximum length of extracted text
+        max_file_size_mb: Skip files larger than this (MB) for speed
         
     Returns:
-        Extracted text or None if extraction fails
+        Extracted text or None if extraction fails/skipped
     """
     if not _check_ocr_available():
         return None
@@ -58,14 +59,29 @@ def extract_text_from_image(image_path: str, max_length: int = 500) -> Optional[
     if not os.path.exists(image_path):
         return None
     
+    # Skip large files for speed
+    try:
+        file_size_mb = os.path.getsize(image_path) / (1024 * 1024)
+        if file_size_mb > max_file_size_mb:
+            return None  # Skip large files
+    except Exception:
+        pass
+    
     try:
         from PIL import Image
         
+        # Quick size check before processing
         image = Image.open(image_path)
-        text = _pytesseract.image_to_string(image, config='--psm 6')  # Uniform block of text
+        width, height = image.size
+        # Skip very large images (>10MP) for speed
+        if width * height > 10_000_000:
+            return None
+        
+        # Fast OCR with minimal config for speed
+        text = _pytesseract.image_to_string(image, config='--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?@#$%&*()_+-=[]{}|;:,.<>?/~`')  # Quick config
         
         if text:
-            # Clean up text - remove extra whitespace
+            # Quick cleanup - remove extra whitespace
             text = ' '.join(text.split())
             # Truncate if too long
             if len(text) > max_length:
@@ -77,13 +93,14 @@ def extract_text_from_image(image_path: str, max_length: int = 500) -> Optional[
     return None
 
 
-def extract_from_attachment_path(attachment_path: str, max_length: int = 500) -> Optional[str]:
+def extract_from_attachment_path(attachment_path: str, max_length: int = 300, max_file_size_mb: int = 5) -> Optional[str]:
     """
-    Extract text from attachment if it's an image
+    Extract text from attachment if it's an image (fast, optimized for speed)
     
     Args:
         attachment_path: Path to attachment file
         max_length: Maximum length of extracted text
+        max_file_size_mb: Skip files larger than this (MB) for speed
         
     Returns:
         Extracted text or None
@@ -92,27 +109,36 @@ def extract_from_attachment_path(attachment_path: str, max_length: int = 500) ->
         return None
     
     # Check if file exists
-    if not os.path.exists(attachment_path):
-        # Try relative to common attachment locations
+    actual_path = None
+    if os.path.exists(attachment_path):
+        actual_path = attachment_path
+    else:
+        # Try relative to common attachment locations (quick check)
         possible_paths = [
-            attachment_path,
-            os.path.join(os.path.expanduser("~"), "Library/Messages/Attachments", attachment_path),
+            os.path.join(os.path.expanduser("~"), "Library/Messages/Attachments", os.path.basename(attachment_path)),
         ]
-        attachment_path = None
         for path in possible_paths:
             if os.path.exists(path):
-                attachment_path = path
+                actual_path = path
                 break
         
-        if not attachment_path:
+        if not actual_path:
             return None
+    
+    # Quick size check - skip large files immediately for speed
+    try:
+        file_size_mb = os.path.getsize(actual_path) / (1024 * 1024)
+        if file_size_mb > max_file_size_mb:
+            return None  # Skip large files
+    except Exception:
+        return None
     
     # Check if it's an image
     image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
-    ext = Path(attachment_path).suffix.lower()
+    ext = Path(actual_path).suffix.lower()
     
     if ext in image_extensions:
-        return extract_text_from_image(attachment_path, max_length)
+        return extract_text_from_image(actual_path, max_length, max_file_size_mb)
     
     return None
 
