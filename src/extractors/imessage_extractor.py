@@ -102,6 +102,11 @@ class iMessageExtractor:
                    not is_tapback:
                     continue
                 
+                # Filter out large iMessage groups (>7 participants)
+                participant_count = len(message.participants) if message.participants else 0
+                if participant_count > 7:
+                    continue  # Skip large group chats
+                
                 ledger.add_message(message)
             except Exception as e:
                 logger.warning(f"Error processing iMessage row {row['rowid']}: {e}")

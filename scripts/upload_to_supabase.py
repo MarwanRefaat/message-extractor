@@ -347,7 +347,15 @@ class SupabaseUploader:
             return
         
         data = []
+        skipped_count = 0
         for row in rows:
+            # Filter out large group chats for WhatsApp and iMessage (>7 participants)
+            platform = row['platform']
+            participant_count = row['participant_count'] if row['participant_count'] else 0
+            
+            if platform in ('whatsapp', 'imessage') and participant_count > 7:
+                skipped_count += 1
+                continue
             data.append((
                 row['conversation_id'],
                 row['conversation_name'] if row['conversation_name'] else None,
@@ -388,6 +396,8 @@ class SupabaseUploader:
         self.stats['conversations'] = len(data)
         cursor_pg.close()
         cursor_sqlite.close()
+        if skipped_count > 0:
+            print(f"   ⚠️  Skipped {skipped_count} large group chats (>7 participants)")
         print(f"   ✅ Migrated {len(data)} conversations")
     
     def _migrate_messages(self, batch_size: int):
@@ -395,6 +405,18 @@ class SupabaseUploader:
         print("\n   📨 Migrating messages...")
         
         cursor_sqlite = self.sqlite_conn.cursor()
+        
+        # Get list of large group chat conversation IDs to exclude
+        cursor_sqlite.execute("""
+            SELECT conversation_id FROM conversations 
+            WHERE platform IN ('whatsapp', 'imessage') 
+            AND participant_count > 7
+        """)
+        large_group_conv_ids = {row[0] for row in cursor_sqlite.fetchall()}
+        
+        if large_group_conv_ids:
+            print(f"   ⚠️  Filtering out messages from {len(large_group_conv_ids)} large group chats")
+        
         cursor_sqlite.execute("SELECT * FROM messages")
         rows = cursor_sqlite.fetchall()
         
@@ -403,7 +425,12 @@ class SupabaseUploader:
             return
         
         data = []
+        skipped_count = 0
         for row in rows:
+            # Skip messages from large group chats
+            if row['conversation_id'] in large_group_conv_ids:
+                skipped_count += 1
+                continue
             # Parse JSON if present
             raw_data = None
             if row['raw_data']:
@@ -461,6 +488,8 @@ class SupabaseUploader:
         self.stats['messages'] = len(data)
         cursor_pg.close()
         cursor_sqlite.close()
+        if skipped_count > 0:
+            print(f"   ⚠️  Skipped {skipped_count} messages from large group chats")
         print(f"   ✅ Migrated {len(data)} messages")
     
     def _migrate_participants(self, batch_size: int):
@@ -468,6 +497,15 @@ class SupabaseUploader:
         print("\n   👥 Migrating conversation participants...")
         
         cursor_sqlite = self.sqlite_conn.cursor()
+        
+        # Get list of large group chat conversation IDs to exclude
+        cursor_sqlite.execute("""
+            SELECT conversation_id FROM conversations 
+            WHERE platform IN ('whatsapp', 'imessage') 
+            AND participant_count > 7
+        """)
+        large_group_conv_ids = {row[0] for row in cursor_sqlite.fetchall()}
+        
         cursor_sqlite.execute("SELECT * FROM conversation_participants")
         rows = cursor_sqlite.fetchall()
         
@@ -476,7 +514,12 @@ class SupabaseUploader:
             return
         
         data = []
+        skipped_count = 0
         for row in rows:
+            # Skip participants from large group chats
+            if row['conversation_id'] in large_group_conv_ids:
+                skipped_count += 1
+                continue
             data.append((
                 row['participant_id'],
                 row['conversation_id'],
@@ -512,6 +555,8 @@ class SupabaseUploader:
         self.stats['participants'] = len(data)
         cursor_pg.close()
         cursor_sqlite.close()
+        if skipped_count > 0:
+            print(f"   ⚠️  Skipped {skipped_count} participants from large group chats")
         print(f"   ✅ Migrated {len(data)} participants")
     
     def _migrate_calendar_events(self, batch_size: int):
@@ -537,7 +582,13 @@ class SupabaseUploader:
                 row['event_location'] if row['event_location'] else None,
                 row['event_status'] if row['event_status'] else None,
                 bool(row['is_recurring']) if row['is_recurring'] is not None else False,
-                row['recurrence_pattern'] if row['recurrence_pattern'] else None
+                row['recurrence_pattern'] if row['recurrence_pattern'] else None,
+                row.get('event_timezone'),
+                row.get('calendar_name'),
+                row.get('organizer_email'),
+                row.get('attendee_count', 0) if row.get('attendee_count') else 0,
+                bool(row.get('has_video_conference')) if row.get('has_video_conference') is not None else False,
+                row.get('video_conference_url')
             ))
         
         cursor_pg = self.pg_conn.cursor()
@@ -550,7 +601,9 @@ class SupabaseUploader:
                 """
                 INSERT INTO calendar_events (
                     event_id, message_id, event_start, event_end, event_duration_seconds,
-                    event_location, event_status, is_recurring, recurrence_pattern
+                    event_location, event_status, is_recurring, recurrence_pattern,
+                    event_timezone, calendar_name, organizer_email, attendee_count,
+                    has_video_conference, video_conference_url
                 ) VALUES %s
                 ON CONFLICT (message_id) DO NOTHING
                 """,

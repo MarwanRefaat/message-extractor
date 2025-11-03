@@ -97,6 +97,12 @@ class WhatsAppDatabaseImporter:
         # Sort by timestamp
         messages_list.sort(key=lambda m: m.timestamp if m.timestamp else 0)
         
+        # Count participants before importing - filter out large groups (>7 participants)
+        participant_count = self._count_participants(chat_id, chat_store, messages_list)
+        if participant_count > 7:
+            logger.info(f"Skipping large WhatsApp group '{conv_name}' with {participant_count} participants (limit: 7)")
+            return
+        
         first_timestamp = datetime.fromtimestamp(messages_list[0].timestamp) if messages_list[0].timestamp else None
         last_timestamp = datetime.fromtimestamp(messages_list[-1].timestamp) if messages_list[-1].timestamp else None
         
@@ -136,6 +142,38 @@ class WhatsAppDatabaseImporter:
         
         # Import messages
         self.import_messages(conv_db_id, chat_id, messages_list)
+    
+    def _count_participants(self, chat_id: str, chat_store: ChatStore, messages: List[Message]) -> int:
+        """Count unique participants in a conversation"""
+        participants = set()
+        me_participant = None
+        
+        for msg in messages:
+            if msg.from_me:
+                if not me_participant:
+                    me_participant = 'me'
+            else:
+                # Extract sender info
+                if msg.sender:
+                    participants.add(msg.sender)
+                elif chat_store.name:
+                    participants.add(chat_store.name)
+                else:
+                    # Extract from chat_id
+                    if '@s.whatsapp.net' in chat_id:
+                        # Individual chat - extract phone number
+                        phone = chat_id.split('@')[0]
+                        participants.add(phone)
+                    elif '@g.us' in chat_id:
+                        # Group chat
+                        participants.add(chat_id)
+        
+        # Add "Me" if we have sent messages
+        total = len(participants)
+        if me_participant:
+            total += 1
+        
+        return total
     
     def import_participants(self, conv_db_id: int, chat_id: str, chat_store: ChatStore, messages: List[Message]):
         """Import conversation participants"""
