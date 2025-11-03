@@ -38,8 +38,8 @@ class AppleMailExtractor:
         ledger = UnifiedLedger(start_date=self.start_date)
         
         try:
-            # Use AppleScript to query Mail.app
-            messages = self._query_mail_app(max_results)
+            # Use database query method directly (skips the problematic _query_mail_app)
+            messages = self._query_mail_database(max_results)
             logger.info(f"Found {len(messages)} emails matching criteria")
             
             for i, msg in enumerate(messages):
@@ -151,10 +151,6 @@ class AppleMailExtractor:
         """Query Mail.app using AppleScript (simpler and more reliable)"""
         messages = []
         
-        # Use AppleScript to query Mail.app directly
-        target_emails_script = ' or '.join([f'"{email}"' for email in self.TARGET_EMAILS])
-        start_date_iso = self.start_date.strftime("%Y-%m-%d")
-        
         # Build script with proper escaping
         email1 = self.TARGET_EMAILS[0]
         email2 = self.TARGET_EMAILS[1]
@@ -165,6 +161,8 @@ class AppleMailExtractor:
             set matchingMessages to {{}}
             set messageCount to 0
             set startDateObj to date "{start_date_obj}"
+            set targetEmail1 to "{email1}"
+            set targetEmail2 to "{email2}"
             
             -- Get all accounts
             repeat with accountNum from 1 to count of accounts
@@ -181,23 +179,22 @@ class AppleMailExtractor:
                             
                             try
                                 set msgDate to date received of currentMessage
-                                if msgDate < startDateObj then
-                                    exit repeat
-                                end if
+                                if msgDate < startDateObj then exit repeat
                                 
-                                -- Check To recipients
-                                set msgRecipients to every recipient of currentMessage
+                                -- Check To recipients - use proper Mail.app syntax
                                 set isTarget to false
-                                
-                                repeat with recipient in msgRecipients
-                                    try
-                                        set recipientAddress to address of recipient as string
-                                        if recipientAddress contains "{email1}" or recipientAddress contains "{email2}" then
-                                            set isTarget to true
-                                            exit repeat
-                                        end if
-                                    end try
-                                end repeat
+                                try
+                                    set msgToRecipientsList to to recipients of currentMessage
+                                    repeat with aRecipient in msgToRecipientsList
+                                        try
+                                            set recipientAddr to address of aRecipient as string
+                                            if recipientAddr contains targetEmail1 or recipientAddr contains targetEmail2 then
+                                                set isTarget to true
+                                                exit repeat
+                                            end if
+                                        end try
+                                    end repeat
+                                end try
                                 
                                 if isTarget then
                                     set msgId to (id of currentMessage) as string
@@ -226,22 +223,21 @@ class AppleMailExtractor:
                             
                             try
                                 set msgDate to date received of currentMessage
-                                if msgDate < startDateObj then
-                                    exit repeat
-                                end if
+                                if msgDate < startDateObj then exit repeat
                                 
-                                set msgRecipients to (to recipients of currentMessage)
                                 set isTarget to false
-                                
-                                repeat with recipient in msgRecipients
-                                    try
-                                        set recipientAddress to (address of recipient) as string
-                                        if recipientAddress contains "{email1}" or recipientAddress contains "{email2}" then
-                                            set isTarget to true
-                                            exit repeat
-                                        end if
-                                    end try
-                                end repeat
+                                try
+                                    set msgToRecipientsList to to recipients of currentMessage
+                                    repeat with aRecipient in msgToRecipientsList
+                                        try
+                                            set recipientAddr to address of aRecipient as string
+                                            if recipientAddr contains targetEmail1 or recipientAddr contains targetEmail2 then
+                                                set isTarget to true
+                                                exit repeat
+                                            end if
+                                        end try
+                                    end repeat
+                                end try
                                 
                                 if isTarget then
                                     set msgId to (id of currentMessage) as string

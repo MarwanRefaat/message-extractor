@@ -48,8 +48,8 @@ class LocalCalendarExtractor:
             )
         
         try:
-            # Query Calendar.app using AppleScript
-            events = self._query_calendar_app(max_results)
+            # Query Calendar.app using AppleScript (use simple method directly)
+            events = self._query_calendar_simple(max_results)
             logger.info(f"Found {len(events)} calendar events matching criteria")
             
             for event in events:
@@ -161,6 +161,8 @@ class LocalCalendarExtractor:
             set matchingEvents to {{}}
             set eventCount to 0
             set startDateObj to date "{start_date_obj}"
+            set targetEmail1 to "{email1}"
+            set targetEmail2 to "{email2}"
             
             repeat with currentCal in calendars
                 try
@@ -181,24 +183,29 @@ class LocalCalendarExtractor:
                             
                             -- Check attendees
                             try
-                                set evtAttendees to every attendee of evt
-                                repeat with att in evtAttendees
-                                    try
-                                        set attEmail to email of att as string
-                                        if attEmail contains "{email1}" or attEmail contains "{email2}" then
-                                            set hasTargetEmail to true
-                                            exit repeat
-                                        end if
-                                    end try
-                                end repeat
+                                set evtAttendeesList to attendees of evt
+                                if (count of evtAttendeesList) > 0 then
+                                    repeat with anAttendee in evtAttendeesList
+                                        try
+                                            set attEmailAddr to email of anAttendee as string
+                                            if attEmailAddr contains targetEmail1 or attEmailAddr contains targetEmail2 then
+                                                set hasTargetEmail to true
+                                                exit repeat
+                                            end if
+                                        end try
+                                    end repeat
+                                end if
                             end try
                             
                             -- Check organizer
                             if not hasTargetEmail then
                                 try
-                                    set orgEmail to email of organizer of evt as string
-                                    if orgEmail contains "{email1}" or orgEmail contains "{email2}" then
-                                        set hasTargetEmail to true
+                                    set evtOrganizerObj to organizer of evt
+                                    if evtOrganizerObj is not missing value then
+                                        set orgEmailAddr to email of evtOrganizerObj as string
+                                        if orgEmailAddr contains targetEmail1 or orgEmailAddr contains targetEmail2 then
+                                            set hasTargetEmail to true
+                                        end if
                                     end if
                                 end try
                             end if
