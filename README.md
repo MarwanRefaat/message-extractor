@@ -12,7 +12,7 @@ Extract and unify all your messages from **iMessage**, **WhatsApp**, **Gmail**, 
 ./run.sh --extract-all
 ```
 
-**Done!** Your messages are in `output/unified/`
+**Done!** Your messages are in `data/unified/`
 
 ## What It Does
 
@@ -59,7 +59,7 @@ Two options available:
 - Extract database from device backup
 - Import into chat database:
   ```bash
-  python3 import_whatsapp_to_database.py --android --msg-db /path/to/msgstore.db --db chats.db
+  python3 scripts/import_whatsapp.py --android --msg-db /path/to/msgstore.db --db data/database/chats.db
   ```
 - See [WhatsApp Import Guide](docs/WHATSAPP_IMPORT.md) for details
 
@@ -70,11 +70,13 @@ Two options available:
 ## Output
 
 ```
-output/
+data/
 ├── raw/                    # Original data from each platform
-└── unified/                # Combined everything
-    ├── unified_ledger.json # Full data
-    └── unified_timeline.txt# Human-readable timeline
+├── unified/                # Combined everything
+│   ├── unified_ledger.json # Full data
+│   └── unified_timeline.txt# Human-readable timeline
+└── database/               # SQLite databases
+    └── chats.db            # Main chat database
 ```
 
 ## Output Quality

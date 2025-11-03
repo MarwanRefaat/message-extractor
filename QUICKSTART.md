@@ -20,7 +20,7 @@ Get your messages extracted in under 2 minutes!
 
 ## Done! 🎉
 
-Your messages are in `output/unified/`:
+Your messages are in `data/unified/`:
 - `unified_ledger.json` - Full data
 - `unified_timeline.txt` - Human-readable timeline
 

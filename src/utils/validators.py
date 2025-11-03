@@ -12,7 +12,7 @@ from datetime import datetime
 EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 # Phone regex: allows +, digits, spaces, hyphens, parentheses, and parentheses with text (like "filtered")
 PHONE_REGEX = re.compile(r'^\+?[\d\s\-()]+(\([^)]+\))?$')
-PLATFORM_REGEX = re.compile(r'^(imessage|whatsapp|gmail|gcal|applemail|localcal|googletakeoutcal|googletakeoutchat|googletakeoutmeet|googletakeoutcontacts)$')
+PLATFORM_REGEX = re.compile(r'^(imessage|whatsapp|gmail|gcal|googletakeoutcal|googletakeoutchat|googletakeoutmeet|googletakeoutcontacts)$')
 MESSAGE_ID_REGEX = re.compile(r'^[a-z]+:[a-zA-Z0-9_-]+$')
 TIMESTAMP_REGEX = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$')
 

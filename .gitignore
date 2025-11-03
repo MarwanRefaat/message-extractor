@@ -24,8 +24,8 @@ wheels/
 .installed.cfg
 *.egg
 
-# Output files
-output/
+# Output files  
+data/
 *.json
 *.jsonl
 *.txt
@@ -37,6 +37,7 @@ IMESSAGE_EXPORT_TEMP/
 raw_originals/
 _archived_exports/
 CONTACTS_EXPORT/
+gmail_export/
 
 # Credentials
 credentials.json
@@ -54,31 +55,26 @@ credentials.json
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 
-# WhatsApp databases
+# Database files
 *.db
 *.sqlite
-!setup_whatsapp.py  # If we add a setup script
+data/database/*.db
 
-# iMessage database
-chat.db
+# Logs
+*.log
 
-# Data exports and personal files
-CONTACTS_EXPORT/
-IMESSAGE_EXPORT_TEMP/
-_archived_exports/
-_archived_tools/
-CHAT_DATABASE_SUMMARY.md
-ENHANCED_DATABASE_SUMMARY.md
-WHATSAPP_INTEGRATION_SUMMARY.md
+# Personal summary files
+*SUMMARY*.md
+DATABASE*.md
+WHATSAPP*.md
+*ENHANCED*.md
 database_report.txt
+import*.log
 
 # CSV data files (uncomment if you want to exclude all CSV files)
 # *.csv

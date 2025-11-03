@@ -7,5 +7,5 @@ if [ -d ".venv" ]; then
 fi
 
 # Run main script
-python main.py "$@"
+python scripts/extract.py "$@"
 

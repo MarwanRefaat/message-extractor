@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
 """
 Main orchestrator script for message extraction
-Extracts from iMessage, WhatsApp, Gmail, and Google Calendar
+Extracts from iMessage, WhatsApp, Gmail, Google Calendar, and Google Takeout
 """
 import os
 import argparse
@@ -8,14 +9,16 @@ import sys
 import inspect
 from pathlib import Path
 
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+
 from schema import UnifiedLedger
 from constants import (
     FILTER_START_DATE, OUTPUT_DIR, RAW_DIR, UNIFIED_DIR,
     DEFAULT_MAX_RESULTS, UNIFIED_LEDGER_JSON, UNIFIED_TIMELINE_TXT
 )
 from extractors import (
-    iMessageExtractor, WhatsAppExtractor, GmailExtractor, GoogleCalendarExtractor,
-    AppleMailExtractor, LocalCalendarExtractor,
+    iMessageExtractor, GmailExtractor, GoogleCalendarExtractor,
     GoogleTakeoutCalendarExtractor, GoogleTakeoutChatExtractor,
     GoogleTakeoutMeetExtractor, GoogleTakeoutContactsExtractor
 )
@@ -80,13 +83,13 @@ def extract_platform(extractor, platform_name: str, raw_dir: Path, raw_only: boo
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(
-        description="Extract messages from iMessage, WhatsApp, Apple Mail, and Local Calendar",
+        description="Extract messages from iMessage, WhatsApp, Gmail, and Google Calendar",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python main.py --extract-imessage
   python main.py --extract-all
-  python main.py --extract-gmail --extract-gcal  # Apple Mail & Local Calendar
+  python main.py --extract-gmail --extract-gcal
   python main.py --extract-whatsapp --whatsapp-db /path/to/db
         """
     )
@@ -137,8 +140,8 @@ Examples:
     parser.add_argument(
         '--takeout-path',
         type=str,
-        default='raw_originals/Takeout',
-        help='Path to Google Takeout directory (default: raw_originals/Takeout)'
+        default='_archived_exports/raw_originals/Takeout',
+        help='Path to Google Takeout directory (default: _archived_exports/raw_originals/Takeout)'
     )
     
     parser.add_argument(
@@ -201,23 +204,23 @@ Examples:
             except MessageExtractorError as e:
                 logger.error(f"Skipping WhatsApp: {e}")
     
-    # Extract Apple Mail (replaces Gmail - local Mail.app)
+    # Extract Gmail
     if args.extract_all or args.extract_gmail:
         try:
-            extractor = AppleMailExtractor()
-            count = extract_platform(extractor, "Apple Mail", raw_dir, args.raw_only, unified_ledger, args.max_results)
+            extractor = GmailExtractor()
+            count = extract_platform(extractor, "Gmail", raw_dir, args.raw_only, unified_ledger, args.max_results)
             extracted_count += count
         except (MessageExtractorError, FileNotFoundError, ImportError) as e:
-            logger.warning(f"Skipping Apple Mail: {e}")
+            logger.warning(f"Skipping Gmail: {e}")
     
-    # Extract Local Calendar (replaces Google Calendar - local Calendar.app)
+    # Extract Google Calendar
     if args.extract_all or args.extract_gcal:
         try:
-            extractor = LocalCalendarExtractor()
-            count = extract_platform(extractor, "Local Calendar", raw_dir, args.raw_only, unified_ledger, args.max_results)
+            extractor = GoogleCalendarExtractor()
+            count = extract_platform(extractor, "Google Calendar", raw_dir, args.raw_only, unified_ledger, args.max_results)
             extracted_count += count
         except (MessageExtractorError, FileNotFoundError, ImportError) as e:
-            logger.warning(f"Skipping Local Calendar: {e}")
+            logger.warning(f"Skipping Google Calendar: {e}")
     
     # Extract Google Takeout Calendar
     if args.extract_takeout or args.extract_all:

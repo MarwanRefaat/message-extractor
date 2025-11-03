@@ -16,9 +16,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-# Add project root and WhatsApp Exporter to path
-sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(Path(__file__).parent / "_archived_tools" / "WhatsApp-Chat-Exporter"))
+# Add src and WhatsApp Exporter to path
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / "_archived_tools" / "WhatsApp-Chat-Exporter"))
 
 from Whatsapp_Chat_Exporter import android_handler, ios_handler
 from Whatsapp_Chat_Exporter.data_model import ChatCollection, ChatStore, Message

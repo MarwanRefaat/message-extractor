@@ -23,8 +23,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from collections import defaultdict
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from schema import Message, Contact, UnifiedLedger
 from extractors.llm_extractor import LLMExtractor
@@ -36,7 +36,7 @@ logger = get_logger('chat_db_creator')
 class ChatDatabaseCreator:
     """Create and populate SQLite database with chat messages"""
     
-    def __init__(self, db_path: str = "chats.db", contacts_csv_path: Optional[str] = None):
+    def __init__(self, db_path: str = "data/database/chats.db", contacts_csv_path: Optional[str] = None):
         """
         Initialize database creator
         
@@ -981,7 +981,8 @@ class ChatDatabaseCreator:
         report = '\n'.join(report_lines)
         
         # Also save to file
-        report_path = "database_report.txt"
+        report_path = "data/database/database_report.txt"
+        os.makedirs(os.path.dirname(report_path), exist_ok=True)
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write(report)
         
@@ -1003,12 +1004,12 @@ def main():
     # Parse command line arguments
     import argparse
     parser = argparse.ArgumentParser(description="Create SQLite database from chat exports")
-    parser.add_argument('--export-dir', default='IMESSAGE_EXPORT_TEMP',
+    parser.add_argument('--export-dir', default='data/exports/IMESSAGE_EXPORT_TEMP',
                        help='Directory containing iMessage HTML exports')
-    parser.add_argument('--db-path', default='chats.db',
+    parser.add_argument('--db-path', default='data/database/chats.db',
                        help='Path to SQLite database file')
     parser.add_argument('--ledger', help='Path to unified ledger JSON file')
-    parser.add_argument('--contacts-csv', default='CONTACTS_EXPORT/contacts_database.csv',
+    parser.add_argument('--contacts-csv', default='data/exports/CONTACTS_EXPORT/contacts_database.csv',
                        help='Path to contacts CSV for intelligent matching')
     
     args = parser.parse_args()

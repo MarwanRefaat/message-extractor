@@ -26,7 +26,7 @@ GMAIL_API_PAGE_SIZE = 500
 GCAL_API_PAGE_SIZE = 2500
 
 # Output structure
-OUTPUT_DIR = "./output"
+OUTPUT_DIR = "./data"
 RAW_DIR = "raw"
 UNIFIED_DIR = "unified"
 

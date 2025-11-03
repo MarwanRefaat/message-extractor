@@ -21,10 +21,10 @@ Thanks for wanting to contribute!
 
 ## Adding a Platform
 
-1. Add extractor to `extractors/` folder
+1. Add extractor to `src/extractors/` folder
 2. Implement `extract_all()` and `export_raw()` methods
-3. Add to `extractors/__init__.py`
-4. Update `main.py` to include it
+3. Add to `src/extractors/__init__.py`
+4. Update `scripts/extract.py` to include it
 5. Update README
 
 ## Questions?
