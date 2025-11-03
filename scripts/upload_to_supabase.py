@@ -52,7 +52,7 @@ class SupabaseUploader:
     """
     
     def __init__(self, connection_params: Dict[str, str], sqlite_path: str, 
-                 migration_sql_path: Optional[str] = None):
+                 migration_sql_path: Optional[str] = None, connection_string: Optional[str] = None):
         """
         Initialize uploader
         
@@ -60,8 +60,10 @@ class SupabaseUploader:
             connection_params: PostgreSQL connection parameters
             sqlite_path: Path to SQLite database
             migration_sql_path: Path to SQL migration file
+            connection_string: Full connection string (for pooler connections)
         """
         self.connection_params = connection_params
+        self.connection_string = connection_string
         self.sqlite_path = Path(sqlite_path)
         self.migration_sql_path = Path(migration_sql_path) if migration_sql_path else None
         
@@ -86,9 +88,21 @@ class SupabaseUploader:
         
         # Connect to PostgreSQL/Supabase
         try:
-            self.pg_conn = psycopg2.connect(**self.connection_params)
+            # Use connection string directly for pooler (avoids encoding issues)
+            if self.connection_string and 'pooler' in self.connection_string.lower():
+                # Convert postgres:// to postgresql:// and use directly
+                dsn = self.connection_string.replace('postgres://', 'postgresql://')
+                self.pg_conn = psycopg2.connect(dsn)
+            else:
+                # For direct connections, use parameters
+                connection_params = self.connection_params.copy()
+                if 'client_encoding' not in connection_params:
+                    connection_params['client_encoding'] = 'UTF8'
+                self.pg_conn = psycopg2.connect(**connection_params)
+            
             self.pg_conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-            print(f"   ✅ Connected to Supabase: {self.connection_params['host']}")
+            host = self.connection_params.get('host', 'unknown')
+            print(f"   ✅ Connected to Supabase: {host}")
         except Exception as e:
             print(f"   ❌ Failed to connect to Supabase: {e}")
             raise
@@ -277,15 +291,15 @@ class SupabaseUploader:
             data.append((
                 row['contact_id'],
                 row['display_name'],
-                row['email'],
-                row['phone'],
+                row['email'] if row['email'] else None,
+                row['phone'] if row['phone'] else None,
                 row['platform'],
                 row['platform_id'],
-                self._convert_timestamp(row.get('first_seen')),
-                self._convert_timestamp(row.get('last_seen')),
-                row.get('message_count', 0),
-                bool(row.get('is_me', False)),
-                bool(row.get('is_validated', False))
+                self._convert_timestamp(row['first_seen'] if row['first_seen'] else None),
+                self._convert_timestamp(row['last_seen'] if row['last_seen'] else None),
+                row['message_count'] if row['message_count'] else 0,
+                bool(row['is_me']) if row['is_me'] is not None else False,
+                bool(row['is_validated']) if row['is_validated'] is not None else False
             ))
         
         # Insert into PostgreSQL (with ID preservation for foreign keys)
@@ -336,16 +350,16 @@ class SupabaseUploader:
         for row in rows:
             data.append((
                 row['conversation_id'],
-                row.get('conversation_name'),
+                row['conversation_name'] if row['conversation_name'] else None,
                 row['platform'],
-                row.get('thread_id'),
-                self._convert_timestamp(row.get('first_message_at')),
-                self._convert_timestamp(row.get('last_message_at')),
-                row.get('message_count', 0),
-                bool(row.get('is_group', False)),
-                row.get('participant_count', 2),
-                bool(row.get('is_important', False)),
-                row.get('category')
+                row['thread_id'] if row['thread_id'] else None,
+                self._convert_timestamp(row['first_message_at'] if row['first_message_at'] else None),
+                self._convert_timestamp(row['last_message_at'] if row['last_message_at'] else None),
+                row['message_count'] if row['message_count'] else 0,
+                bool(row['is_group']) if row['is_group'] is not None else False,
+                row['participant_count'] if row['participant_count'] else 2,
+                bool(row['is_important']) if row['is_important'] is not None else False,
+                row['category'] if row['category'] else None
             ))
         
         cursor_pg = self.pg_conn.cursor()
@@ -392,7 +406,7 @@ class SupabaseUploader:
         for row in rows:
             # Parse JSON if present
             raw_data = None
-            if row.get('raw_data'):
+            if row['raw_data']:
                 try:
                     raw_data = json.loads(row['raw_data']) if isinstance(row['raw_data'], str) else row['raw_data']
                 except:
@@ -405,18 +419,18 @@ class SupabaseUploader:
                 row['conversation_id'],
                 row['sender_id'],
                 self._convert_timestamp(row['timestamp']),
-                row.get('timezone'),
+                row['timezone'] if row['timezone'] else None,
                 row['body'],
-                row.get('subject'),
-                bool(row.get('is_read')) if row.get('is_read') is not None else None,
-                bool(row.get('is_starred')) if row.get('is_starred') is not None else None,
-                bool(row.get('is_sent', True)),
-                bool(row.get('is_deleted', False)),
-                bool(row.get('is_reply', False)),
-                row.get('reply_to_message_id'),
-                bool(row.get('has_attachment', False)),
-                bool(row.get('is_tapback', False)),
-                row.get('tapback_type'),
+                row['subject'] if row['subject'] else None,
+                bool(row['is_read']) if row['is_read'] is not None else None,
+                bool(row['is_starred']) if row['is_starred'] is not None else None,
+                bool(row['is_sent']) if row['is_sent'] is not None else True,
+                bool(row['is_deleted']) if row['is_deleted'] is not None else False,
+                bool(row['is_reply']) if row['is_reply'] is not None else False,
+                row['reply_to_message_id'] if row['reply_to_message_id'] else None,
+                bool(row['has_attachment']) if row['has_attachment'] is not None else False,
+                bool(row['is_tapback']) if row['is_tapback'] is not None else False,
+                row['tapback_type'] if row['tapback_type'] else None,
                 json.dumps(raw_data) if raw_data else None
             ))
         
@@ -467,10 +481,10 @@ class SupabaseUploader:
                 row['participant_id'],
                 row['conversation_id'],
                 row['contact_id'],
-                row.get('role', 'member'),
-                self._convert_timestamp(row.get('joined_at')),
-                self._convert_timestamp(row.get('left_at')),
-                row.get('message_count', 0)
+                row['role'] if row['role'] else 'member',
+                self._convert_timestamp(row['joined_at'] if row['joined_at'] else None),
+                self._convert_timestamp(row['left_at'] if row['left_at'] else None),
+                row['message_count'] if row['message_count'] else 0
             ))
         
         cursor_pg = self.pg_conn.cursor()
@@ -518,12 +532,12 @@ class SupabaseUploader:
                 row['event_id'],
                 row['message_id'],
                 self._convert_timestamp(row['event_start']),
-                self._convert_timestamp(row.get('event_end')),
-                row.get('event_duration_seconds'),
-                row.get('event_location'),
-                row.get('event_status'),
-                bool(row.get('is_recurring', False)),
-                row.get('recurrence_pattern')
+                self._convert_timestamp(row['event_end'] if row['event_end'] else None),
+                row['event_duration_seconds'] if row['event_duration_seconds'] else None,
+                row['event_location'] if row['event_location'] else None,
+                row['event_status'] if row['event_status'] else None,
+                bool(row['is_recurring']) if row['is_recurring'] is not None else False,
+                row['recurrence_pattern'] if row['recurrence_pattern'] else None
             ))
         
         cursor_pg = self.pg_conn.cursor()
@@ -571,8 +585,8 @@ class SupabaseUploader:
                 row['tag_id'],
                 row['message_id'],
                 row['tag_name'],
-                row.get('tag_value'),
-                self._convert_timestamp(row.get('created_at'))
+                row['tag_value'] if row['tag_value'] else None,
+                self._convert_timestamp(row['created_at'] if row['created_at'] else None)
             ))
         
         cursor_pg = self.pg_conn.cursor()
@@ -744,15 +758,25 @@ def parse_connection_string(connection_string: str) -> Dict[str, str]:
 
 def build_connection_string(host: str, password: str, project_ref: str, port: int = 5432) -> Dict[str, str]:
     """Build connection string from components"""
-    if not host.startswith('db.'):
+    # If host is explicitly provided and not empty, use it
+    if host and host.strip():
+        # Use pooler username format if connecting via pooler
+        if 'pooler' in host:
+            user = f'postgres.{project_ref}'
+        else:
+            user = 'postgres'
+    else:
+        # Default to direct connection hostname
         host = f'db.{project_ref}.supabase.co'
+        user = 'postgres'
     
     return {
         'host': host,
         'port': str(port),
         'database': 'postgres',
-        'user': 'postgres',
-        'password': password
+        'user': user,
+        'password': password,
+        'sslmode': 'require'
     }
 
 
@@ -820,18 +844,21 @@ Examples:
     sqlite_path = Path(__file__).parent.parent / args.sqlite_db
     migration_sql = Path(__file__).parent.parent / args.migration_sql
     
+    # Get connection string if provided
+    connection_string = args.connection_string if hasattr(args, 'connection_string') and args.connection_string else None
+    
     print("="*70)
     print("🚀 SUPABASE DATABASE UPLOAD")
     print("="*70)
     print(f"Project: message_extractor")
     print(f"Email: marwan@marwanrefaat.com")
     print(f"SQLite DB: {sqlite_path}")
-    print(f"Supabase: {connection_params['host']}")
+    print(f"Supabase: {connection_params.get('host', 'connection string')}")
     print("="*70)
     
     uploader = None
     try:
-        uploader = SupabaseUploader(connection_params, str(sqlite_path), str(migration_sql))
+        uploader = SupabaseUploader(connection_params, str(sqlite_path), str(migration_sql), connection_string)
         uploader.connect()
         
         # Create schema

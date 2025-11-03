@@ -38,11 +38,15 @@ raw_originals/
 _archived_exports/
 CONTACTS_EXPORT/
 gmail_export/
+checkpoints/
+*.jsonl
+results.jsonl
 
 # Credentials
 credentials.json
 *.pem
 *.key
+.env
 
 # IDE
 .vscode/
@@ -67,6 +71,8 @@ data/database/*.db
 
 # Logs
 *.log
+logs/
+*.log.*
 
 # Personal summary files
 *SUMMARY*.md

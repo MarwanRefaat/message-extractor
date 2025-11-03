@@ -5,11 +5,13 @@ Uses local LLM to extract and structure messages from raw data
 import json
 import re
 from typing import List, Optional, Dict, Any
+from utils.chunked_processor import IsolatedLLMProcessor
 from datetime import datetime
 
 from schema import Message, Contact, UnifiedLedger
 from utils.logger import get_logger
 from utils.validators import validate_message, sanitize_json_data
+from utils.chunked_processor import IsolatedLLMProcessor
 
 logger = get_logger(__name__)
 
@@ -96,30 +98,59 @@ class LLMExtractor:
         else:
             messages = self._extract_single(raw_data)
         
-        # Validate and add messages
+        # Validate and add messages with isolation
+        isolated_processor = IsolatedLLMProcessor(
+            llm_func=self._process_single_message,
+            fallback_func=None,  # Could add regex fallback later
+            max_retries=1
+        )
+        
         for msg_dict in messages:
-            try:
-                # Create Message object
-                message = self._dict_to_message(msg_dict)
-                ledger.add_message(message)
-            except Exception as e:
-                logger.warning(f"Failed to add message: {e}")
+            # Use isolated processor to prevent one failure from crashing everything
+            result = isolated_processor(msg_dict)
+            if result:
+                ledger.add_message(result)
         
         return ledger
     
+    def _process_single_message(self, msg_dict: Dict[str, Any]) -> Optional[Message]:
+        """Process a single message dict - isolated from failures"""
+        try:
+            return self._dict_to_message(msg_dict)
+        except Exception as e:
+            logger.warning(f"Failed to process message: {e}")
+            return None
+    
     def _extract_single(self, raw_data: str) -> List[Dict[str, Any]]:
         """Extract messages from single data chunk"""
-        prompt = self._build_extraction_prompt(raw_data)
-        
-        # Get LLM response
-        response = self.llm.generate(
-            prompt,
-            max_tokens=4096,
-            temp=self.temperature
+        # Wrap LLM call in isolated processor to prevent crashes
+        isolated_llm = IsolatedLLMProcessor(
+            llm_func=lambda data: self._call_llm_safely(data),
+            max_retries=2
         )
         
-        # Extract JSON from response
-        return self._parse_llm_response(response)
+        result = isolated_llm(raw_data)
+        if result:
+            return result
+        return []
+    
+    def _call_llm_safely(self, raw_data: str) -> Optional[List[Dict[str, Any]]]:
+        """Safely call LLM with error isolation"""
+        try:
+            prompt = self._build_extraction_prompt(raw_data)
+            
+            # Get LLM response
+            response = self.llm.generate(
+                prompt,
+                max_tokens=4096,
+                temp=self.temperature
+            )
+            
+            # Extract JSON from response
+            return self._parse_llm_response(response)
+        except Exception as e:
+            logger.error(f"LLM call failed: {e}")
+            return None
     
     def _extract_batch(self, raw_data: str) -> List[Dict[str, Any]]:
         """Extract messages from large data in batches"""
@@ -130,8 +161,13 @@ class LLMExtractor:
         all_messages = []
         for i, chunk in enumerate(chunks):
             logger.info(f"Processing chunk {i+1}/{len(chunks)}")
-            messages = self._extract_single(chunk)
-            all_messages.extend(messages)
+            try:
+                messages = self._extract_single(chunk)
+                if messages:
+                    all_messages.extend(messages)
+            except Exception as e:
+                logger.warning(f"Chunk {i+1} failed (continuing): {e}")
+                continue  # Continue with next chunk even if this one fails
         
         return all_messages
     

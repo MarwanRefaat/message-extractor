@@ -18,6 +18,15 @@ from .error_handling import (
     handle_extraction_error
 )
 
+from .chunked_processor import (
+    ChunkedProcessor,
+    IsolatedLLMProcessor,
+    create_chunked_processor,
+    ChunkProgress
+)
+
+from .logger import get_logger
+
 __all__ = [
     'retry_with_backoff',
     'safe_file_open',
@@ -33,4 +42,9 @@ __all__ = [
     'ResourceManager',
     'ProgressTracker',
     'handle_extraction_error',
+    'ChunkedProcessor',
+    'IsolatedLLMProcessor',
+    'create_chunked_processor',
+    'ChunkProgress',
+    'get_logger',
 ]

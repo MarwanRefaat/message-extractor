@@ -17,6 +17,7 @@ from schema import Message, Contact, UnifiedLedger
 from constants import FILTER_START_DATE
 from exceptions import ExtractionError
 from utils.logger import get_logger
+from utils.chunked_processor import ChunkedProcessor
 
 logger = get_logger(__name__)
 
@@ -342,12 +343,14 @@ class GmailExtractor:
         
         return body.strip()
     
-    def extract_all(self, max_results: int = 10000) -> UnifiedLedger:
+    def extract_all(self, max_results: int = 10000, use_chunked: bool = True, chunk_size: int = 50) -> UnifiedLedger:
         """
         Extract all emails from Gmail using gmail-exporter
         
         Args:
-            max_results: Maximum number of messages to retrieve (note: gmail-exporter may not respect this)
+            max_results: Maximum number of messages to retrieve
+            use_chunked: Whether to use chunked processing with incremental saves
+            chunk_size: Size of chunks for incremental saving
         """
         ledger = UnifiedLedger(start_date=self.start_date)
         
@@ -363,48 +366,76 @@ class GmailExtractor:
             logger.warning("No EML files found to process")
             return ledger
         
-        # Parse EML files with better error handling and progress tracking
-        processed = 0
-        failed = 0
-        skipped = 0
+        # Limit to max_results
+        if len(eml_files) > max_results:
+            eml_files = eml_files[:max_results]
+            logger.info(f"Limited to {max_results} files")
         
-        for i, eml_path in enumerate(eml_files):
-            if processed >= max_results:
-                logger.info(f"Reached max_results limit ({max_results}), stopping")
-                break
+        # Use chunked processing for robustness
+        if use_chunked:
+            processor = ChunkedProcessor(
+                chunk_size=chunk_size,
+                checkpoint_dir=self.export_dir / "checkpoints",
+                result_file=self.export_dir / "results.jsonl",
+                get_item_id=lambda path: str(path),
+                save_interval=10,
+                isolated_errors=True
+            )
             
-            try:
-                message = self._parse_eml_file(eml_path)
+            # Process files in chunks
+            results = processor.process_chunked(
+                items=eml_files,
+                process_func=self._parse_eml_file_wrapper,
+                total_items=len(eml_files),
+                resume=True
+            )
+            
+            # Add successful results to ledger
+            for message in results:
                 if message:
                     ledger.add_message(message)
-                    processed += 1
-                else:
-                    skipped += 1  # Filtered out by date or email match
-                    
-                # Log progress every 100 files or at intervals
-                if (i + 1) % 100 == 0 or (i + 1) == len(eml_files):
-                    logger.info(
-                        f"Progress: {i + 1}/{len(eml_files)} files "
-                        f"(processed: {processed}, skipped: {skipped}, failed: {failed})"
-                    )
+            
+            stats = processor.get_stats()
+            logger.info(
+                f"Chunked processing complete: "
+                f"{stats['successful']} successful, "
+                f"{stats['failed']} failed, "
+                f"{stats['skipped']} skipped"
+            )
+        else:
+            # Legacy non-chunked processing
+            processed = 0
+            failed = 0
+            skipped = 0
+            
+            for i, eml_path in enumerate(eml_files):
+                try:
+                    message = self._parse_eml_file(eml_path)
+                    if message:
+                        ledger.add_message(message)
+                        processed += 1
+                    else:
+                        skipped += 1
                         
-            except KeyboardInterrupt:
-                logger.warning(f"Interrupted by user at file {i + 1}/{len(eml_files)}")
-                logger.info(f"Processed {processed} emails before interruption")
-                raise
-            except Exception as e:
-                failed += 1
-                # Only log warnings for unexpected errors, not import issues
-                if "message_from_bytes" not in str(e) and "module" not in str(e):
+                    if (i + 1) % 100 == 0:
+                        logger.info(
+                            f"Progress: {i + 1}/{len(eml_files)} "
+                            f"(processed: {processed}, skipped: {skipped}, failed: {failed})"
+                        )
+                        
+                except KeyboardInterrupt:
+                    logger.warning(f"Interrupted at {i + 1}/{len(eml_files)}")
+                    raise
+                except Exception as e:
+                    failed += 1
                     logger.warning(f"Error processing {eml_path.name}: {e}")
-                # Continue processing other files
-                continue
+                    continue
         
-        logger.info(
-            f"Extraction complete: {processed} emails extracted, "
-            f"{skipped} skipped (date/email filter), {failed} failed"
-        )
         return ledger
+    
+    def _parse_eml_file_wrapper(self, eml_path: Path) -> Optional[Message]:
+        """Wrapper for chunked processor - handles Path objects"""
+        return self._parse_eml_file(eml_path)
     
     def export_raw(self, output_dir: str, max_results: int = 10000):
         """Export raw Gmail data using gmail-exporter"""
